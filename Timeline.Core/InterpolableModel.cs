@@ -31,7 +31,7 @@ namespace Timeline
         public readonly bool canInterpolateBefore;
         public readonly bool canInterpolateAfter;
 
-#if FIXED_095 || FIXED_0951
+#if FEATURE_SOUND
         public bool instantAction;
 #endif
 
@@ -74,7 +74,7 @@ namespace Timeline
             canInterpolateAfter = _interpolateAfter != null;
             _getFinalName = getFinalName;
             _shouldShow = shouldShow;
-#if FIXED_095 || FIXED_0951
+#if FEATURE_SOUND
             this.instantAction = instantAction;
 #endif
             unchecked
