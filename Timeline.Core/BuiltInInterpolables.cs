@@ -1402,24 +1402,7 @@ namespace Timeline
                     name: "SoundSFX",
                     parameter: null,
                     interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => {
-#if FEATURE_PRODUCT
-                        if(Timeline.isValidSfxSupport) {
-                                AudioSource audioSource = oci.guideObject.gameObject.GetComponent<AudioSource>();
 
-                                if (audioSource != null) {
-                                        string leftValueStr = leftValue?.ToString() ?? string.Empty;
-                                        Timeline.SoundItem soundSFX = JsonUtility.FromJson<Timeline.SoundItem>(leftValueStr);
-
-                                        string soundFilePath = Path.Combine(Application.temporaryCachePath, soundSFX.fileName);
-
-                                        string url = "file://" + soundFilePath;
-
-                                        UnityEngine.Debug.Log($"timeline> play sfx sound {url}");
-
-                                        LoadAudio(url, audioSource, false);
-                                }
-                        }       
-#else
                         AudioSource audioSource = oci.guideObject.gameObject.GetComponent<AudioSource>();
 
                         if (audioSource != null) {
@@ -1434,7 +1417,7 @@ namespace Timeline
 
                                 LoadAudio(url, audioSource, false);
                         }
-#endif
+
                     },
                     interpolateAfter: null,
                     isCompatibleWithTarget: (oci) => oci != null,
@@ -1450,24 +1433,7 @@ namespace Timeline
                     name: "SoundBG",
                     parameter: null,
                     interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => {
-#if FEATURE_PRODUCT
-                        if(Timeline.isValidSfxSupport) {
-                                AudioSource audioSource = oci.guideObject.gameObject.GetComponent<AudioSource>();
 
-                                if (audioSource != null) {
-                                        string leftValueStr = leftValue?.ToString() ?? string.Empty;
-                                        Timeline.SoundItem soundSFX = JsonUtility.FromJson<Timeline.SoundItem>(leftValueStr);
-
-                                        string soundFilePath = Path.Combine(Application.temporaryCachePath, soundSFX.fileName);
-
-                                        string url = "file://" + soundFilePath;
-                                        
-                                        UnityEngine.Debug.Log($"timeline> play bg sound {url}");
-
-                                        LoadAudio(url, audioSource, true);
-                                }
-                        }
-#else
                         AudioSource audioSource = oci.guideObject.gameObject.GetComponent<AudioSource>();
 
                         if (audioSource != null) {
@@ -1482,7 +1448,6 @@ namespace Timeline
 
                                 LoadAudio(url, audioSource, true);
                         }
-#endif
                     },
                     interpolateAfter: null,
                     isCompatibleWithTarget: (oci) => oci != null,

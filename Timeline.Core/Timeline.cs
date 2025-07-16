@@ -8,9 +8,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.IO.Compression;
 using System.Xml;
-using System.Globalization;
 using BepInEx.Logging;
 using ToolBox;
 using ToolBox.Extensions;
@@ -57,10 +55,11 @@ namespace Timeline
     [BepInPlugin(GUID, Name, Version)]
 #if KOIKATSU || SUNSHINE
     [BepInProcess("CharaStudio")]
+    [BepInDependency(Sideloader.Sideloader.GUID, Sideloader.Sideloader.Version)]
 #elif AISHOUJO || HONEYSELECT2
     [BepInProcess("StudioNEOV2")]
 #endif
-    [BepInDependency("com.bepis.bepinex.extendedsave")]
+    [BepInDependency(KKAPI.KoikatuAPI.GUID, KKAPI.KoikatuAPI.VersionConst)]
 #endif
     public class Timeline : GenericPlugin
 #if IPA
@@ -215,7 +214,7 @@ namespace Timeline
 #endif 
 #if FIXED_096
        public class ObjectCtrlItem {
-            public ObjectCtrlInfo ctrlInfo;
+            public ObjectCtrlInfo oci;
             public GameObject keyframeGroup; 
             public List<KeyframeDisplay> displayedKeyframes;
             public bool dirty;
@@ -316,19 +315,7 @@ namespace Timeline
         private RectTransform _keyframesContainer;
         private RectTransform _miscContainer;
         private GameObject _keyframePrefab;
-#if FEATURE_AUTOGEN
-        private const string AUTOGEN_INTERPOLABLE_FILE = "_interpolable_"; 
-#endif
-#if FEATURE_SOUND
-        private readonly Dictionary<int, TimerItem> _activeTimers = new Dictionary<int, TimerItem>();
-        private Guid _uuid = Guid.NewGuid();
-#endif
-#if FIXED_096
-        private readonly Dictionary<int, ObjectCtrlItem> _ociControlMgmt = new Dictionary<int, ObjectCtrlItem>();
-#endif
-#if FIXED_096_DEBUG
-        private Queue<KeyframeDisplay> _keyframeDisplayPool = new Queue<KeyframeDisplay>();
-#endif
+
         private Material _keyframesBackgroundMaterial;
         private Text _tooltip;
         private GameObject _curveKeyframePrefab;
@@ -361,27 +348,36 @@ namespace Timeline
         private readonly List<KeyValuePair<float, Keyframe>> _selectedKeyframes = new List<KeyValuePair<float, Keyframe>>();
         private readonly List<KeyValuePair<float, Keyframe>> _copiedKeyframes = new List<KeyValuePair<float, Keyframe>>();
         private readonly List<KeyValuePair<float, Keyframe>> _cutKeyframes = new List<KeyValuePair<float, Keyframe>>();
-#if FEATURE_UNDO
-        private LimitedStack<TransactionData> _undoStack = new LimitedStack<TransactionData>(20);
-        private LimitedStack<TransactionData> _redoStack = new LimitedStack<TransactionData>(20);
-#endif
 
-        private ObjectCtrlInfo _selectedOCI;
         private readonly Dictionary<KeyframeDisplay, float> _selectedKeyframesXOffset = new Dictionary<KeyframeDisplay, float>();
         private double _keyframeSelectionSize;
         private int _selectedKeyframeCurvePointIndex = -1;
+        private ObjectCtrlInfo _selectedOCI;
         //private GuideObject _selectedGuideObject;
         private readonly AnimationCurve _copiedKeyframeCurve = new AnimationCurve();
 
         private bool _isAreaSelecting;
         private Vector2 _areaSelectFirstPoint;
         private RectTransform _selectionArea;
+
 #if FEATURE_AUTOGEN
         private bool isAutoGenerating = false;
+        private const string AUTOGEN_INTERPOLABLE_FILE = "_interpolable_"; 
 #endif
 #if FEATURE_SOUND
         private Dictionary<int, Interpolable> _instantActionInterpolables = new Dictionary<int, Interpolable>();
         private KeyValuePair <float, Interpolable> _keepSoundInterpolable = new KeyValuePair<float, Interpolable>(); 
+        private readonly Dictionary<int, TimerItem> _activeTimers = new Dictionary<int, TimerItem>();
+        private Guid _uuid = Guid.NewGuid();        
+#endif
+#if FIXED_096
+        private Vector2 _cursorPoint;
+        private readonly Dictionary<int, ObjectCtrlItem> _ociControlMgmt = new Dictionary<int, ObjectCtrlItem>();
+        private Queue<KeyframeDisplay> _keyframeDisplayPool = new Queue<KeyframeDisplay>();
+#endif
+#if FEATURE_UNDO
+        private LimitedStack<TransactionData> _undoStack = new LimitedStack<TransactionData>(20);
+        private LimitedStack<TransactionData> _redoStack = new LimitedStack<TransactionData>(20);
 #endif
         #endregion
 
@@ -409,10 +405,6 @@ namespace Timeline
         internal static ConfigEntry<KeyboardShortcut> ConfigKeyframePasteShortcut { get; private set; }
         internal static ConfigEntry<Autoplay> ConfigAutoplay { get; private set; }
 
-#if FEATURE_PRODUCT
-        internal static string validSfxDateStr = "20251201";
-        internal static bool isValidSfxSupport = true;
-#endif
 #if FEATURE_AUTOGEN
         internal static ConfigEntry<KeyboardShortcut> ConfigKeyframeSelectAllShortcut { get; private set; }
         internal static ConfigEntry<KeyboardShortcut> ConfigKeyframeDeleteAllShortcut { get; private set; }
@@ -426,6 +418,7 @@ namespace Timeline
         internal static ConfigEntry<bool> ConfigKeyEnableUndoRedo { get; private set; }         
 #endif
 
+        
 
         internal enum Autoplay
         {
@@ -439,20 +432,6 @@ namespace Timeline
         protected override void Awake()
         {
             base.Awake();
-#if FEATURE_PRODUCT
-            DateTime availableDate = DateTime.ParseExact(validSfxDateStr, "yyyyMMdd", CultureInfo.InvariantCulture);
-
-            DateTime now = DateTime.Now;
-            TimeSpan diff = availableDate - now;
-
-            if (diff.Days > 0) {
-                isValidSfxSupport = true;
-            } 
-
-            if (!isValidSfxSupport) {
-                Logger.LogMessage($"SFX on timeline not support anymore, update new version..");
-            }
-#endif
             ConfigMainWindowShortcut = Config.Bind("Config", "Open Timeline UI", new KeyboardShortcut(KeyCode.T, KeyCode.LeftControl));
             ConfigPlayPauseShortcut = Config.Bind("Config", "Play or Pause Timeline", new KeyboardShortcut(KeyCode.T, KeyCode.LeftShift));
             ConfigKeyframeCopyShortcut = Config.Bind("Config", "Copy Keyframes", new KeyboardShortcut(KeyCode.C, KeyCode.LeftControl));
@@ -632,14 +611,15 @@ namespace Timeline
 
             InterpolateAfter();
         }
+
+#if FIXED_096
+        private void DelayCursorUpdate(){
+            UpdateCursor();
+        }            
+#endif        
         #endregion
 
-        #region Public Methods
-
-        public static bool IsTimelineAvailable() {
-            return _self._loaded;
-        }
-
+        #region Public Methods        
         /// <summary>
         /// Start playback or pause it if it's already playing.
         /// </summary>
@@ -652,6 +632,9 @@ namespace Timeline
 
 #if FEATURE_SOUND
                 _self.SoundCtrl(1);
+#endif
+#if FIXED_096
+                _self.InvokeRepeating(nameof(_self.DelayCursorUpdate), 0f, 0.1f); // 0.2초마다 주기적 호출
 #endif
             }
             else
@@ -667,6 +650,9 @@ namespace Timeline
 #if FEATURE_SOUND
             _self.SoundCtrl(2);           
 #endif
+#if FIXED_096
+            _self.CancelInvoke(nameof(_self.DelayCursorUpdate));
+#endif
         }
         /// <summary>
         /// Stop playback and move cursor to the beginning.
@@ -680,6 +666,9 @@ namespace Timeline
             isPlaying = false;
 #if FEATURE_SOUND
             _self.SoundCtrl(3);
+#endif
+#if FIXED_096
+            _self.CancelInvoke(nameof(_self.DelayCursorUpdate));
 #endif
         }
 
@@ -948,9 +937,10 @@ namespace Timeline
 
             GameObject keyframeGroup = new GameObject($"0");
             keyframeGroup.transform.SetParent(_keyframesContainer.gameObject.transform, false);
-            objectCtrlItem.keyframeGroup = keyframeGroup;
+            keyframeGroup.transform.localPosition = Vector3.zero;
+            objectCtrlItem.keyframeGroup = keyframeGroup;    
             objectCtrlItem.displayedKeyframes = new List<KeyframeDisplay>();
-            objectCtrlItem.ctrlInfo = null;
+            objectCtrlItem.oci = null;
             objectCtrlItem.dirty = true;
 
             _ociControlMgmt.Add(0, objectCtrlItem);
@@ -1446,7 +1436,7 @@ namespace Timeline
 #else
                 _playbackTime = (Time.time - _startTime) % _duration;
 #endif
-                UpdateCursor();
+                // UpdateCursor();
                 Interpolate(true);
             }
         }
@@ -1694,13 +1684,17 @@ namespace Timeline
             }
 
             return total * duration;
-        }
-
+        }            
+           
         #region Main Window
         private void UpdateCursor()
         {
-            _cursor.anchoredPosition = new Vector2((_playbackTime * _grid.rect.width) / _duration, _cursor.anchoredPosition.y);
+            _cursorPoint = _cursor.anchoredPosition; // 현재 y 값을 유지
+            _cursorPoint.x = (_playbackTime * _grid.rect.width) / _duration;
+            _cursor.anchoredPosition = _cursorPoint;
+
             UpdateCursor2();
+
             _timeInputField.text = $"{Mathf.FloorToInt(_playbackTime / 60):00}:{(_playbackTime % 60):00.000}";
         }
 
@@ -2647,10 +2641,13 @@ namespace Timeline
 
 #if FIXED_096
         private void UpdateGrid()
-        {
+        {            
             if (!_ui.gameObject.activeSelf)
                 return;
-                
+
+#if FIXED_096_DEBUG
+            SetObjectCtrlDirty(_selectedOCI);
+#endif                
             _durationInputField.text = $"{Mathf.FloorToInt(_duration / 60):00}:{(_duration % 60):00.00}";
 
             _horizontalScrollView.content.sizeDelta = new Vector2(_baseGridWidth * _zoomLevel * _duration / 10f, _horizontalScrollView.content.sizeDelta.y);
@@ -2684,12 +2681,14 @@ namespace Timeline
             {
                 foreach (KeyValuePair<int, ObjectCtrlItem> pair in _ociControlMgmt)
                 {                    
-                    UpdateKeyframeInfo(GetOciControlInfo(pair.Value.ctrlInfo));
+                    UpdateKeyframeInfo(GetOciControlInfo(pair.Value.oci));
                 }
             }
             else
-            {
-                UpdateKeyframeInfo(GetOciControlInfo(_selectedOCI));
+            {                
+                if (_selectedOCI != null)
+                    UpdateKeyframeInfo(GetOciControlInfo(null));
+                UpdateKeyframeInfo(GetOciControlInfo(_selectedOCI));             
             }
 
             UpdateKeyframeSelection();
@@ -2699,12 +2698,12 @@ namespace Timeline
             this.ExecuteDelayed2(() => _keyframesContainer.sizeDelta = new Vector2(_keyframesContainer.sizeDelta.x, _verticalScrollView.content.rect.height), 2);
         }
 
-        private ObjectCtrlItem GetOciControlInfo(ObjectCtrlInfo objectCtrlInfo) {
+        private ObjectCtrlItem GetOciControlInfo(ObjectCtrlInfo oci) {
             
             int hashcode = 0;
 
-            if (objectCtrlInfo != null)
-                hashcode = objectCtrlInfo.GetHashCode();
+            if (oci != null)
+                hashcode = oci.GetHashCode();         
                 
             ObjectCtrlItem objectCtrlItem = null;
             if (_ociControlMgmt.TryGetValue(hashcode, out objectCtrlItem))
@@ -2719,35 +2718,38 @@ namespace Timeline
 
             if (objectCtrlItem == null)
                 return;
-            
+
             GameObject keyframeGroup = objectCtrlItem.keyframeGroup;
-            keyframeGroup.SetActive(true);
-            keyframeGroup.transform.localPosition = new Vector3(keyframeGroup.transform.localPosition.x, 0, keyframeGroup.transform.localPosition.z);
+            if (keyframeGroup != null) {
+                keyframeGroup.SetActive(true);
+                keyframeGroup.transform.localPosition = new Vector3(keyframeGroup.transform.localPosition.x, 0, keyframeGroup.transform.localPosition.z);
 
-            if (objectCtrlItem.dirty)
-            {
-                int keyframeIndex = 0;
-                int interpolableIndex = 0;
-
-                UpdateKeyframesTree(_interpolablesTree.tree, ref objectCtrlItem, ref interpolableIndex, ref keyframeIndex);    
-                                
-                // UnityEngine.Debug.Log($"--diff {objectCtrlItem.displayedKeyframes.Count - keyframeIndex} in UpdateGrid");
-                int deleteCnt = objectCtrlItem.displayedKeyframes.Count - keyframeIndex;
-
-                if (deleteCnt > 0)
+                if (objectCtrlItem.dirty)
                 {
-                    int startIndex = objectCtrlItem.displayedKeyframes.Count - deleteCnt;
-                    List<KeyframeDisplay> lastFour = new List<KeyframeDisplay>();
-                    lastFour = objectCtrlItem.displayedKeyframes.GetRange(startIndex, deleteCnt);
-                    foreach (KeyframeDisplay item in lastFour)
-                    {
-                        ReturnToKeyframeDisplayPool(item);
-                    }
-                    objectCtrlItem.displayedKeyframes.RemoveRange(startIndex, deleteCnt);
-                }
+                    if (_interpolablesTree.tree.Count > 0) {
+                        int interpolableIndex = 0;
+                        int keyframeIndex = 0;
 
-                objectCtrlItem.dirty = false;
-            }    
+                        UpdateKeyframesTree(_interpolablesTree.tree, ref objectCtrlItem, ref interpolableIndex, ref keyframeIndex);    
+
+                        int deleteCnt = objectCtrlItem.displayedKeyframes.Count - keyframeIndex;
+
+                        if (deleteCnt > 0)
+                        {
+                            int startIndex = objectCtrlItem.displayedKeyframes.Count - deleteCnt;
+                            List<KeyframeDisplay> lastFour = new List<KeyframeDisplay>();
+                            lastFour = objectCtrlItem.displayedKeyframes.GetRange(startIndex, deleteCnt);
+                            foreach (KeyframeDisplay item in lastFour)
+                            {
+                                ReturnToKeyframeDisplayPool(item);
+                            }
+                            objectCtrlItem.displayedKeyframes.RemoveRange(startIndex, deleteCnt);
+                        }   
+                    }
+
+                    objectCtrlItem.dirty = false;
+                }  
+            }  
         }
 #else
         private void UpdateGrid()
@@ -2804,8 +2806,7 @@ namespace Timeline
 #endif
         private void UpdateKeyframesTree(List<INode> nodes, ref ObjectCtrlItem objectCtrlItem, ref int interpolableIndex, ref int keyframeIndex)
         {
-            float visible_width = _horizontalScrollView.content.rect.width;
-            UnityEngine.Debug.Log($"_displayedInterpolables.Count {_displayedInterpolables.Count}");
+            float visible_width = _horizontalScrollView.content.rect.width;            
 
             foreach (INode node in nodes)
             {
@@ -2813,6 +2814,9 @@ namespace Timeline
                 {
                     case INodeType.Leaf:
                         Interpolable interpolable = ((LeafNode<Interpolable>)node).obj;
+
+                         if (interpolable.oci != objectCtrlItem.oci)
+                            continue;
 
                         if (!IsFilterInterpolationMatch(interpolable))
                             continue;
@@ -2824,8 +2828,6 @@ namespace Timeline
                         {
                             float x = zoomGridWidth * keyframePair.Key / 10f;
 
-                            UnityEngine.Debug.Log($"visible_width {visible_width}, x {x}");
-
                             if (x > visible_width)
                             {
                                 continue;
@@ -2833,7 +2835,7 @@ namespace Timeline
 
                             KeyframeDisplay display;
                             if (keyframeIndex < objectCtrlItem.displayedKeyframes.Count)
-                            {
+                            {                             
                                 display = objectCtrlItem.displayedKeyframes[keyframeIndex];
                             }
                             else
@@ -2851,7 +2853,6 @@ namespace Timeline
                             ((RectTransform)display.gameObject.transform).anchoredPosition = tempPos;
                             display.keyframe = keyframePair.Value;
                             ++keyframeIndex;
-                            UnityEngine.Debug.Log($"tempPos.y {tempPos.y} at {interpolableIndex}");
                         }
                         ++interpolableIndex;
                         break;
@@ -3081,8 +3082,6 @@ namespace Timeline
             display.gridBackground.raycastTarget = false;
             display.gridBackground.material = new Material(_keyframesBackgroundMaterial);
             display.inputField.gameObject.SetActive(false);
-
-            UnityEngine.Debug.Log($"display {((RectTransform)display.gameObject.transform).anchoredPosition.y} at CreateInterpolableDisplay");
 
             display.container.gameObject.AddComponent<PointerDownHandler>().onPointerDown = (e) =>
             {
@@ -3427,12 +3426,9 @@ namespace Timeline
 
         private void UpdateKeyframeSelection()
         {
-            int hashcode = 0;
-            if (_selectedOCI != null)
-                hashcode = _selectedOCI.GetHashCode();
+            ObjectCtrlItem objectCtrlItem = GetOciControlInfo(_selectedOCI);
 
-            ObjectCtrlItem objectCtrlItem = null;
-            if (_ociControlMgmt.TryGetValue(hashcode, out objectCtrlItem))
+            if (objectCtrlItem != null)
             {
                 foreach (KeyframeDisplay display in objectCtrlItem.displayedKeyframes)
                     display.image.color = _selectedKeyframes.Any(k => k.Value == display.keyframe) ? Color.green : Color.red;
@@ -3492,9 +3488,6 @@ namespace Timeline
                 _selectedKeyframes[i] = new KeyValuePair<float, Keyframe>(newTime, pair.Value);
             }
 
-#if FIXED_096_DEBUG
-            SetObjectCtrlDirty(_self._selectedOCI);
-#endif
             UpdateKeyframeWindow(false);
             UpdateGrid();
         }
@@ -3529,9 +3522,7 @@ namespace Timeline
 #endif
                         foreach (Interpolable selectedInterpolable in _selectedInterpolables)
                             AddKeyframe(selectedInterpolable, time);
-#if FIXED_096_DEBUG
-                        SetObjectCtrlDirty(_selectedOCI);
-#endif                             
+                        
                         UpdateGrid();
                     }
                     else
@@ -3582,9 +3573,6 @@ namespace Timeline
                                     UndoPushAction();
 #endif
                                     AddKeyframe(interpolable, time);
-#if FIXED_096_DEBUG
-                                    SetObjectCtrlDirty(_selectedOCI);
-#endif                                     
                                     UpdateGrid();
                                 }
 #else
@@ -3593,9 +3581,6 @@ namespace Timeline
                                 UndoPushAction();
 #endif
                                 AddKeyframe(interpolable, time);
-#if FIXED_096_DEBUG
-                                SetObjectCtrlDirty(_selectedOCI);
-#endif                                 
                                 UpdateGrid();
 #endif
                             }
@@ -3725,9 +3710,6 @@ namespace Timeline
                                         }
                                     }
                                 }
-#if FIXED_096_DEBUG
-                                SetObjectCtrlDirty(_selectedOCI);
-#endif 
                                 UpdateGrid();
                             }
                             
@@ -3777,9 +3759,6 @@ namespace Timeline
                             // 초기 프레임 저장 및 이전 상태 생성
                             prevInterpolableValues.AddRange(GetCurrentValueFromInterpolables(enabledInterpolables));
                             AddKeyframes(enabledInterpolables, startTime);
-#if FIXED_096_DEBUG
-                            SetObjectCtrlDirty(_selectedOCI);
-#endif                                                        
                             UpdateGrid();
 
                             while (isAutoGenerating)
@@ -3830,9 +3809,6 @@ namespace Timeline
                                                 }
                                             }
                                         }
-#if FIXED_096_DEBUG
-                                        SetObjectCtrlDirty(_selectedOCI);
-#endif 
                                         UpdateGrid();
                                     }
 
@@ -3846,9 +3822,6 @@ namespace Timeline
                     isAutoGenerating = false;
                     UpdateGrid();                    
                     CloseKeyframeWindow();            
-#if FIXED_096_DEBUG
-                    SetObjectCtrlDirty(_selectedOCI);
-#endif
 
                     Logger.LogMessage($"End Generating");                    
                 }
@@ -3940,9 +3913,6 @@ namespace Timeline
                     }
                 }
             }
-#if FIXED_096_DEBUG
-            SetObjectCtrlDirty(_self._selectedOCI);
-#endif
             UpdateKeyframeWindow(false);
             UpdateGrid();
         }
@@ -3970,9 +3940,6 @@ namespace Timeline
                         MoveKeyframe(pair.Value, newTime);
                         _selectedKeyframes[i] = new KeyValuePair<float, Keyframe>(newTime, pair.Value);
                     }
-#if FIXED_096_DEBUG
-                SetObjectCtrlDirty(_selectedOCI);
-#endif
                 UpdateKeyframeWindow(false);
                 UpdateGrid();
             }
@@ -3992,9 +3959,6 @@ namespace Timeline
                     MoveKeyframe(pair.Value, newTime);
                     _selectedKeyframes[i] = new KeyValuePair<float, Keyframe>(newTime, pair.Value);
                 }
-#if FIXED_096_DEBUG
-                SetObjectCtrlDirty(_selectedOCI);
-#endif
                 UpdateKeyframeWindow(false);
                 UpdateGrid();
             }
@@ -4099,9 +4063,6 @@ namespace Timeline
 #if FEATURE_UNDO_DEBUG 
                     Logger.LogMessage("UndoPopupAction");
 #endif                    
-#if FIXED_096_DEBUG                   
-                    SetObjectCtrlDirty(_selectedOCI);
-#endif                                         
                     UpdateKeyframeWindow(false);
                     UpdateInterpolablesView();
                 } 
@@ -4130,9 +4091,6 @@ namespace Timeline
                 }
             }
 
-#if FIXED_096_DEBUG
-            SetObjectCtrlDirty(_selectedOCI);
-#endif
             return keyframes;
         }
 #endif
@@ -4425,7 +4383,6 @@ namespace Timeline
 #else
                 string path = Path.Combine(_singleFilesFolder, _singleFileNameField.text + ".xml");
 #endif
-
                 // UnityEngine.Debug.Log($"path {path}");
                 if (File.Exists(path))
                 {
@@ -5130,9 +5087,7 @@ namespace Timeline
                 }
             }
             _selectedKeyframes.RemoveAll(elem => elem.Value == null || keyframes.Any(k => k.Value == elem.Value));
-#if FIXED_096_DEBUG
-            SetObjectCtrlDirty(_selectedOCI);
-#endif
+
             UpdateGrid();
             UpdateKeyframeWindow(false);
         }
@@ -5452,6 +5407,9 @@ namespace Timeline
 
 #if FEATURE_AUTOGEN
         private void SceneInit() {
+#if FIXED_096 
+            CancelInvoke(nameof(_self.DelayCursorUpdate));
+#endif            
             Stop(); 
             isAutoGenerating = false;
 
@@ -5468,7 +5426,7 @@ namespace Timeline
             DeleteTemporaryCache();
             _instantActionInterpolables.Clear();
 #endif
-#if FIXED_096
+#if FIXED_096            
             foreach (KeyValuePair<int, ObjectCtrlItem> pair in _ociControlMgmt)
             {
                 int key = pair.Key;
@@ -5479,9 +5437,13 @@ namespace Timeline
                 
                 ociItem.displayedKeyframes.Clear();
                 GameObject.DestroyImmediate(ociItem.keyframeGroup);
+                ociItem = null;
             }
 
+            // 0번을 제외한 나머지는 모두 제거
+            var value = _ociControlMgmt[0];
             _ociControlMgmt.Clear();
+            _ociControlMgmt[0] = value; 
 #endif
 
             UpdateGrid();
@@ -6170,8 +6132,7 @@ namespace Timeline
 #endif
             {
                 IEnumerable<Type> ociTypes = Assembly.GetAssembly(typeof(ObjectCtrlInfo)).GetTypes().Where(myType => myType.IsClass && !myType.IsAbstract && myType.IsSubclassOf(typeof(ObjectCtrlInfo)));
-
-                foreach (Type t in ociTypes)
+                foreach(Type t in ociTypes)
                 {
                     try
                     {
@@ -6181,7 +6142,7 @@ namespace Timeline
                     {
                         Logger.LogWarning("Could not patch OnDelete of type " + t.Name + "\n" + e);
                     }
-}
+                }
             }
 
             private static void Prefix(object __instance)
@@ -6243,24 +6204,25 @@ namespace Timeline
                     if (!_self._ociControlMgmt.ContainsKey(newOciHashCode)) {
 
                         ObjectCtrlItem objectCtrlItem = new ObjectCtrlItem();
-                        GameObject keyframeGroup = new GameObject($"{newOciHashCode}");
-                        keyframeGroup.transform.SetParent(_self._keyframesContainer.gameObject.transform, false);
+                        GameObject keyframeGroup = new GameObject($"name_{newOciHashCode}");
+                        keyframeGroup.transform.SetParent(_self._keyframesContainer, false);
+                        keyframeGroup.transform.localPosition = Vector3.zero;
                         objectCtrlItem.keyframeGroup = keyframeGroup;
                         
                         objectCtrlItem.displayedKeyframes = new List<KeyframeDisplay>();
-                        objectCtrlItem.ctrlInfo = objectCtrlInfo;
+                        objectCtrlItem.oci = objectCtrlInfo;
                         objectCtrlItem.dirty = true;
                         _self._ociControlMgmt.Add(newOciHashCode, objectCtrlItem);
                     }
 
                     foreach (Transform child in _self._keyframesContainer.transform)
                     {
-                        if (child.gameObject.name != $"{newOciHashCode}")
+                        if (child.gameObject.name.Contains("name_"))
                         {
-                            var t = child.transform;
-                            Vector3 pos = t.localPosition;
-                            pos.y = -10000f;
-                            t.localPosition = pos;
+                            Transform childTransform = child.gameObject.transform;
+                            Vector3 pos = childTransform.localPosition;
+                            pos.y = -10000f; // 원하는 y 값으로 변경
+                            childTransform.localPosition = pos;
                         }
                     }
 #endif

@@ -1,0 +1,78 @@
+{
+  "interpolableGroups": [
+    {
+      "name": "Expression",
+      "interpolables": [
+        {
+          "enabled": true,
+          "owner": "Timeline",
+          "objectIndex": 0,
+          "id": "objectEnabled",
+          "bgColorR": 1,
+          "bgColorG": 1,
+          "bgColorB": 1,
+          "alias": "",
+          "keyframes": [
+            {
+              "time": 0.0999,
+              "value": 1,
+              "curveKeyframes": [
+                { "time": 0, "value": 0, "inTangent": 0, "outTangent": 0 },
+                { "time": 1, "value": 1, "inTangent": 0, "outTangent": 0 }
+              ]
+            }
+          ]
+        },
+        {
+          "enabled": true,
+          "owner": "Timeline",
+          "objectIndex": 0,
+          "id": "guideObjectRot",
+          "guideObjectPath": "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01",
+          "bgColorR": 1,
+          "bgColorG": 1,
+          "bgColorB": 1,
+          "alias": "",
+          "keyframes": [
+            {
+              "time": 0.0999,
+              "valueX": 0,
+              "valueY": 0,
+              "valueZ": 0,
+              "valueW": 1,
+              "curveKeyframes": [
+                { "time": 0, "value": 0, "inTangent": 0, "outTangent": 0 },
+                { "time": 1, "value": 1, "inTangent": 0, "outTangent": 0 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "interpolables": [
+    {
+      "enabled": true,
+      "owner": "Timeline",
+      "objectIndex": 0,
+      "id": "guideObjectPos",
+      "guideObjectPath": "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01",
+      "bgColorR": 1,
+      "bgColorG": 1,
+      "bgColorB": 1,
+      "alias": "",
+      "keyframes": [
+        {
+          "time": 0.0999,
+          "valueX": 0,
+          "valueY": 0,
+          "valueZ": 0,
+          "curveKeyframes": [
+            { "time": 0, "value": 0, "inTangent": 0, "outTangent": 0 },
+            { "time": 1, "value": 1, "inTangent": 0, "outTangent": 0 }
+          ]
+        }
+      ]
+    }
+  ]
+}
