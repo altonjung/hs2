@@ -214,6 +214,7 @@ namespace Timeline
 #endif 
 #if FIXED_096
        public class ObjectCtrlItem {
+            public int hashcode;
             public ObjectCtrlInfo oci;
             public GameObject keyframeGroup; 
             public List<KeyframeDisplay> displayedKeyframes;
@@ -370,14 +371,15 @@ namespace Timeline
         private readonly Dictionary<int, TimerItem> _activeTimers = new Dictionary<int, TimerItem>();
         private Guid _uuid = Guid.NewGuid();        
 #endif
+#if FEATURE_UNDO
+        private LimitedStack<TransactionData> _undoStack = new LimitedStack<TransactionData>(20);
+        private LimitedStack<TransactionData> _redoStack = new LimitedStack<TransactionData>(20);
+#endif
 #if FIXED_096
         private Vector2 _cursorPoint;
         private readonly Dictionary<int, ObjectCtrlItem> _ociControlMgmt = new Dictionary<int, ObjectCtrlItem>();
         private Queue<KeyframeDisplay> _keyframeDisplayPool = new Queue<KeyframeDisplay>();
-#endif
-#if FEATURE_UNDO
-        private LimitedStack<TransactionData> _undoStack = new LimitedStack<TransactionData>(20);
-        private LimitedStack<TransactionData> _redoStack = new LimitedStack<TransactionData>(20);
+        private List<Interpolable> _playbackInterpolables = new List<Interpolable>();
 #endif
         #endregion
 
@@ -635,6 +637,7 @@ namespace Timeline
 #endif
 #if FIXED_096
                 _self.InvokeRepeating(nameof(_self.DelayCursorUpdate), 0f, 0.1f); // 0.2초마다 주기적 호출
+                _self.SearchForPlaybackInterpolates();
 #endif
             }
             else
@@ -659,16 +662,15 @@ namespace Timeline
         /// </summary>
         public static void Stop()
         {
+            isPlaying = false;
             _self._playbackTime = 0f;
             _self.UpdateCursor();
-            _self.Interpolate(true);
-            _self.Interpolate(false);
-            isPlaying = false;
+
 #if FEATURE_SOUND
             _self.SoundCtrl(3);
 #endif
 #if FIXED_096
-            _self.CancelInvoke(nameof(_self.DelayCursorUpdate));
+            _self.CancelInvoke(nameof(_self.DelayCursorUpdate));            
 #endif
         }
 
@@ -931,24 +933,30 @@ namespace Timeline
                     yield return null;
             }
 
-#if FIXED_096_DEBUG
             // 기본 keyframeGroup 생성
-            ObjectCtrlItem objectCtrlItem = new ObjectCtrlItem();
-
-            GameObject keyframeGroup = new GameObject($"0");
-            keyframeGroup.transform.SetParent(_keyframesContainer.gameObject.transform, false);
-            keyframeGroup.transform.localPosition = Vector3.zero;
-            objectCtrlItem.keyframeGroup = keyframeGroup;    
-            objectCtrlItem.displayedKeyframes = new List<KeyframeDisplay>();
-            objectCtrlItem.oci = null;
-            objectCtrlItem.dirty = true;
-
-            _ociControlMgmt.Add(0, objectCtrlItem);
-#endif
+            InitOciControlItems();
             UpdateInterpolablesView();
         }
+
+        private void InitOciControlItems() {
+            if (_ociControlMgmt.Count  == 0) {
+                ObjectCtrlItem objectCtrlItem = new ObjectCtrlItem();
+                GameObject keyframeGroup = new GameObject("name_0");
+                keyframeGroup.transform.SetParent(_keyframesContainer.gameObject.transform, false);
+                keyframeGroup.transform.localPosition = Vector3.zero;
+
+                objectCtrlItem.hashcode = 0;
+                objectCtrlItem.keyframeGroup = keyframeGroup;
+                objectCtrlItem.displayedKeyframes = new List<KeyframeDisplay>();
+                objectCtrlItem.oci = null;
+                objectCtrlItem.dirty = true;
+
+                _ociControlMgmt.Add(objectCtrlItem.hashcode, objectCtrlItem);
+            }
+        }
+
         // keyframeDisplay 오브젝트 꺼내기
-        public KeyframeDisplay GetFromKeyframeDisplayPool()
+        private KeyframeDisplay GetFromKeyframeDisplayPool()
         {
             if (_keyframeDisplayPool.Count > 0)
             {
@@ -963,7 +971,7 @@ namespace Timeline
         }
 
         // keyframeDisplay 오브젝트 반납
-        public void ReturnToKeyframeDisplayPool(KeyframeDisplay obj)
+        private void ReturnToKeyframeDisplayPool(KeyframeDisplay obj)
         {
             obj.gameObject.SetActive(false);
             obj.keyframe = null;
@@ -1028,9 +1036,9 @@ namespace Timeline
                 _selectedInterpolables.RemoveAt(selectedIndex);
             _interpolablesTree.RemoveLeaf(interpolable);
             _selectedKeyframes.RemoveAll(elem => elem.Value.parent == interpolable);
-#if FIXED_096_DEBUG
+#if FIXED_096
             SetObjectCtrlDirty(_selectedOCI);
-#endif
+#endif             
             UpdateInterpolablesView();
             UpdateKeyframeWindow(false);
         }
@@ -1054,9 +1062,9 @@ namespace Timeline
                 interpolable.keyframes.Clear();
 #endif
             }
-#if FIXED_096_DEBUG
+#if FIXED_096
             SetObjectCtrlDirty(_selectedOCI);
-#endif
+#endif            
             UpdateInterpolablesView();
             UpdateKeyframeWindow(false);
         }
@@ -1425,19 +1433,25 @@ namespace Timeline
         {
             if (_isPlaying)
             {
+                bool isLooping = false;
 #if FEATURE_SOUND
                 float _curTime = (Time.time - _startTime) % _duration;
                 if (_curTime < _playbackTime) {
                     UnregisterSoundTimers();
                     RegisterSoundTimer(_curTime);
+                    isLooping = true;
                 }
                
                 _playbackTime = _curTime;
 #else
                 _playbackTime = (Time.time - _startTime) % _duration;
-#endif
-                // UpdateCursor();
+#endif                
+
+#if FIXED_096                
+                PlaybackInterpolates(true, isLooping);
+#else
                 Interpolate(true);
+#endif                
             }
         }
 
@@ -1445,7 +1459,11 @@ namespace Timeline
         {
             if (_isPlaying)
             {
+#if FIXED_096
+                PlaybackInterpolates(false, false);                
+#else                
                 Interpolate(false);
+#endif                
             }
         }
 
@@ -1531,6 +1549,159 @@ namespace Timeline
             return activeSoundFiles;
         }
 #endif
+
+#if FIXED_096
+        private void SearchForPlaybackInterpolates() {
+            _playbackInterpolables.Clear();
+            _interpolablesTree.Recurse((node, depth) =>
+            {
+                if (node.type != INodeType.Leaf)
+                    return;
+
+                Interpolable interpolable = ((LeafNode<Interpolable>)node).obj;
+
+                interpolable.playbackKeyFrameIdx = 0;
+
+#if FEATURE_AUTOGEN
+                if (interpolable.keyframes.Count == 1) {
+                    KeyValuePair<float, Keyframe> keyframePair = interpolable.keyframes.ToList()[0];
+                    if (Math.Round(keyframePair.Key, 3) == 0.099f)
+                    {
+                        return;
+                    }
+                }
+#endif
+                _playbackInterpolables.Add(interpolable);
+            });
+        }
+        
+        private void PlaybackInterpolates(bool before, bool isLooping)
+        {
+            KeyValuePair<float, Keyframe> left = default;
+            KeyValuePair<float, Keyframe> right = default;
+
+            foreach (Interpolable interpolable in _playbackInterpolables) {
+                if (interpolable.enabled == false) {
+#if FEATURE_SOUND
+                    if (interpolable.instantAction) {
+                        AudioSource audioSource = interpolable.oci.guideObject.gameObject.GetComponent<AudioSource>();
+
+                        if (audioSource != null) {
+                            audioSource.mute = true;
+                        }
+                    }
+                    continue;
+#else 
+                    continue;                    
+#endif                    
+                }
+                
+                if (before)
+                {
+                    if (interpolable.canInterpolateBefore == false)
+                        continue;
+                }
+                else
+                {
+                    if (interpolable.canInterpolateAfter == false)
+                        continue;
+                }
+                                
+#if FEATURE_SOUND
+                if (interpolable.instantAction)
+                {
+                    AudioSource audioSource = interpolable.oci.guideObject.gameObject.GetComponent<AudioSource>();
+                    if (audioSource != null) {
+                        audioSource.mute = false;
+                    }
+                } else {
+                    if (isLooping) {
+                        interpolable.playbackKeyFrameIdx = 0;
+                    } else {
+                        if (interpolable.playbackKeyFrameIdx > 0) {
+                            interpolable.playbackKeyFrameIdx--;
+                        } 
+                    }
+
+                    for (int i = interpolable.playbackKeyFrameIdx ; i < interpolable.keyframes.Count; i++)
+                    {
+                        var key = interpolable.keyframes.Keys[i];
+                        var value = interpolable.keyframes.Values[i];
+
+                        if (key <= _playbackTime) {
+                            left = new KeyValuePair<float, Keyframe>(key, value);
+                            interpolable.playbackKeyFrameIdx = i;
+                        }
+                        else
+                        {
+                            right = new KeyValuePair<float, Keyframe>(key, value);
+                            break;
+                        }
+                    }                 
+                }      
+#else                
+                if (isLooping) {
+                    interpolable.playbackKeyFrameIdx = 0;
+                } else {
+                    if (interpolable.playbackKeyFrameIdx > 0) {
+                        interpolable.playbackKeyFrameIdx--;
+                    } 
+                }
+                
+                for (int i = interpolable.playbackKeyFrameIdx ; i < interpolable.keyframes.Count; i++)
+                {
+                    var key = interpolable.keyframes.Keys[i];
+                    var value = interpolable.keyframes.Values[i];
+
+                    if (key <= _playbackTime) {
+                        left = new KeyValuePair<float, Keyframe>(key, value);
+                        interpolable.playbackKeyFrameIdx = i;
+                    }
+                    else
+                    {
+                        right = new KeyValuePair<float, Keyframe>(key, value);
+                        break;
+                    }
+                }
+#endif                        
+                bool res = true;
+
+                if (left.Value != null && right.Value != null)
+                {
+                    float normalizedTime = (_playbackTime - left.Key) / (right.Key - left.Key);
+                    normalizedTime = left.Value.curve.Evaluate(normalizedTime);
+                    if (before)
+                        res = interpolable.InterpolateBefore(left.Value.value, right.Value.value, normalizedTime);
+                    else
+                        res = interpolable.InterpolateAfter(left.Value.value, right.Value.value, normalizedTime);
+
+                    left = default;
+                    right = default;
+                }
+                else if (left.Value != null)
+                {
+                    if (before)
+                        res = interpolable.InterpolateBefore(left.Value.value, left.Value.value, 0);
+                    else
+                        res = interpolable.InterpolateAfter(left.Value.value, left.Value.value, 0);
+
+                    left = default;
+                }
+                else if (right.Value != null)
+                {
+                    if (before)
+                        res = interpolable.InterpolateBefore(right.Value.value, right.Value.value, 0);
+                    else
+                        res = interpolable.InterpolateAfter(right.Value.value, right.Value.value, 0);
+
+                    right = default;
+                }
+                if (res == false)
+                    _toDelete.Add(interpolable);                  
+            }
+        }
+
+#endif 
         private void Interpolate(bool before)
         {
             KeyValuePair<float, Keyframe> left = default;
@@ -1543,26 +1714,8 @@ namespace Timeline
                 Interpolable interpolable = ((LeafNode<Interpolable>)node).obj;
                 if (interpolable.enabled == false)
                 {
-#if FEATURE_SOUND
-                    if (interpolable.instantAction) {
-                        AudioSource audioSource = interpolable.oci.guideObject.gameObject.GetComponent<AudioSource>();
-
-                        if (audioSource != null) {
-                            audioSource.mute = true;
-                        }
-                    }
-#endif
                     return;
                 }
-#if FEATURE_AUTOGEN
-                if (interpolable.keyframes.Count == 1) {
-                    KeyValuePair<float, Keyframe> keyframePair = interpolable.keyframes.ToList()[0];
-                    if (Math.Round(keyframePair.Key, 3) == 0.099f)
-                    {
-                        return;
-                    }
-                }
-#endif
                 if (before)
                 {
                     if (interpolable.canInterpolateBefore == false)
@@ -1573,26 +1726,7 @@ namespace Timeline
                     if (interpolable.canInterpolateAfter == false)
                         return;
                 }
-#if FEATURE_SOUND
-                if (interpolable.instantAction)
-                {
-                    AudioSource audioSource = interpolable.oci.guideObject.gameObject.GetComponent<AudioSource>();
-                    if (audioSource != null) {
-                        audioSource.mute = false;
-                    }
-                } else {                                       
-                    foreach (KeyValuePair<float, Keyframe> keyframePair in interpolable.keyframes)
-                    {
-                        if (keyframePair.Key <= _playbackTime)
-                            left = keyframePair;
-                        else
-                        {
-                            right = keyframePair;
-                            break;
-                        }
-                    }                    
-                }
-#else
+
                 foreach (KeyValuePair<float, Keyframe> keyframePair in interpolable.keyframes)
                 {
                     if (keyframePair.Key <= _playbackTime)
@@ -1603,7 +1737,7 @@ namespace Timeline
                         break;
                     }
                 }
-#endif
+
                 bool res = true;
 
                 if (left.Value != null && right.Value != null)
@@ -2245,10 +2379,7 @@ namespace Timeline
                                         {
                                             if (n.type == INodeType.Leaf)
                                                 AddKeyframe(((LeafNode<Interpolable>)n).obj, time);
-                                        });
-#if FIXED_096_DEBUG
-                                        SetObjectCtrlDirty(_selectedOCI);
-#endif                                        
+                                        });                                   
                                         UpdateGrid();
                                     }
                                 });
@@ -2645,9 +2776,6 @@ namespace Timeline
             if (!_ui.gameObject.activeSelf)
                 return;
 
-#if FIXED_096_DEBUG
-            SetObjectCtrlDirty(_selectedOCI);
-#endif                
             _durationInputField.text = $"{Mathf.FloorToInt(_duration / 60):00}:{(_duration % 60):00.00}";
 
             _horizontalScrollView.content.sizeDelta = new Vector2(_baseGridWidth * _zoomLevel * _duration / 10f, _horizontalScrollView.content.sizeDelta.y);
@@ -2677,18 +2805,22 @@ namespace Timeline
             for (; textIndex < _timeTexts.Count; textIndex++)
                 _timeTexts[textIndex].gameObject.SetActive(false);
 
+            int interpolableIndex = 0;
+
             if (_allToggle.isOn)
-            {
+            {                                    
                 foreach (KeyValuePair<int, ObjectCtrlItem> pair in _ociControlMgmt)
-                {                    
-                    UpdateKeyframeInfo(GetOciControlInfo(pair.Value.oci));
+                {                                
+                    UpdateKeyframeInfo(GetOciControlInfo(pair.Value.oci), ref interpolableIndex);
                 }
             }
             else
-            {                
-                if (_selectedOCI != null)
-                    UpdateKeyframeInfo(GetOciControlInfo(null));
-                UpdateKeyframeInfo(GetOciControlInfo(_selectedOCI));             
+            {   
+                if (_selectedOCI != null) {
+                    UpdateKeyframeInfo(GetOciControlInfo(null), ref interpolableIndex);
+                }
+
+                UpdateKeyframeInfo(GetOciControlInfo(_selectedOCI), ref interpolableIndex);
             }
 
             UpdateKeyframeSelection();
@@ -2714,20 +2846,22 @@ namespace Timeline
             return null;
         }
 
-        private void UpdateKeyframeInfo(ObjectCtrlItem objectCtrlItem) {
+        private void UpdateKeyframeInfo(ObjectCtrlItem objectCtrlItem, ref int interpolableIndex) {
 
             if (objectCtrlItem == null)
                 return;
 
             GameObject keyframeGroup = objectCtrlItem.keyframeGroup;
-            if (keyframeGroup != null) {
-                keyframeGroup.SetActive(true);
-                keyframeGroup.transform.localPosition = new Vector3(keyframeGroup.transform.localPosition.x, 0, keyframeGroup.transform.localPosition.z);
 
-                if (objectCtrlItem.dirty)
+            if (keyframeGroup != null) {
+                // keyframeGroup.SetActive(true);                          
+                Vector3 pos = keyframeGroup.transform.localPosition;
+                pos.y = 0;                
+                keyframeGroup.transform.localPosition = pos;
+
+                if (objectCtrlItem.oci == null || objectCtrlItem.dirty || objectCtrlItem.displayedKeyframes.Count == 0)
                 {
                     if (_interpolablesTree.tree.Count > 0) {
-                        int interpolableIndex = 0;
                         int keyframeIndex = 0;
 
                         UpdateKeyframesTree(_interpolablesTree.tree, ref objectCtrlItem, ref interpolableIndex, ref keyframeIndex);    
@@ -2746,7 +2880,7 @@ namespace Timeline
                             objectCtrlItem.displayedKeyframes.RemoveRange(startIndex, deleteCnt);
                         }   
                     }
-
+            
                     objectCtrlItem.dirty = false;
                 }  
             }  
@@ -2820,7 +2954,7 @@ namespace Timeline
 
                         if (!IsFilterInterpolationMatch(interpolable))
                             continue;
-
+                        
                         InterpolableDisplay interpolableDisplay = _displayedInterpolables[interpolableIndex];
                         float zoomGridWidth = _baseGridWidth * _zoomLevel;
                         Vector2 tempPos = Vector2.zero;
@@ -3594,237 +3728,250 @@ namespace Timeline
         private IEnumerator GenerateAnimationTimeline(float startTime)
         {   
             List<Interpolable> enabledInterpolables = GetAllInterpolables(true).ToList(); 
-            OCIChar _character = null;
-            if (_selectedOCI != null)
-                _character = (OCIChar)_selectedOCI;
 
-            if (_character != null && enabledInterpolables.Count > 0) {
+            if (_selectedOCI != null && _selectedOCI as OCIChar != null && enabledInterpolables.Count > 0) {
+                OCIChar _character = _selectedOCI as OCIChar;
+                Action reflectAnimationToFKIK = DoNothing;
+
+                if (_character.oiCharInfo.enableFK && _character.oiCharInfo.enableIK) {
+                    reflectAnimationToFKIK = DoFKIK;
+                } else if (_character.oiCharInfo.enableFK && !_character.oiCharInfo.enableIK) {
+                    reflectAnimationToFKIK = DoFK;
+                } else if (!_character.oiCharInfo.enableFK && _character.oiCharInfo.enableIK) {
+                    reflectAnimationToFKIK = DoIK;
+                }
                 
-                if (isAutoGenerating) {     
-                    isAutoGenerating = false;               
-                } else {                    
+                if (reflectAnimationToFKIK != DoNothing) {
+                    
+                    if (isAutoGenerating) {     
+                        isAutoGenerating = false;               
+                    } else {                    
 #if FEATURE_UNDO
-                    UndoPushAction();
+                        UndoPushAction();
 #endif
-                    Pause();
+                        Pause();
 
-                    float _keyframe = 0.0f;
-                    int _animation_cnt = 0;
-                    List<object> prevInterpolableValues = new List<object>();
+                        float _keyframe = 0.0f;
+                        int _animation_cnt = 0;
+                        List<object> prevInterpolableValues = new List<object>();
 
-                    Studio.Studio.Instance.manipulatePanelCtrl.active = true;
-                    Studio.Studio.Instance.manipulatePanelCtrl.charaPanelInfo.mpCharCtrl.fkInfo.ociChar = _character;
-
-                    Action reflectAnimationToFKIK = DoNothing;     
-                    bool isFKIK = false; 
-
-                    if (_character.oiCharInfo.enableFK && _character.oiCharInfo.enableIK) {
-                       isFKIK = true;                
-                       reflectAnimationToFKIK = DoFKIK;
-                    } else if (_character.oiCharInfo.enableFK && !_character.oiCharInfo.enableIK) {
-                       reflectAnimationToFKIK = DoFK;
-                    } else if (!_character.oiCharInfo.enableFK && _character.oiCharInfo.enableIK) {
-                       reflectAnimationToFKIK = DoIK;
-                    }
-                    
-                    OICharInfo.AnimeInfo _aniInfo = _character.oiCharInfo.animeInfo;                  
-                    Animator _animator = _character.charAnimeCtrl.animator;
-
-                    // speed set to none-zero
-                    AnimatorStateInfo stateInfo = _animator.GetCurrentAnimatorStateInfo(0);
-
-                    if (stateInfo.loop == true) {                        
-                        Logger.LogMessage($"Start Generating for loop");
-                       
-                        isAutoGenerating = true;
-                    
-                        List<KeyValuePair<float, Keyframe>> generatedKeyPairs = new List<KeyValuePair<float, Keyframe>>();
-
-                        Stopwatch stopWatch = new Stopwatch();
-                        Stopwatch idleWatch = new Stopwatch();
-                                            
-                        reflectAnimationToFKIK();  
-                        yield return new WaitForEndOfFrame();
+                        Studio.Studio.Instance.manipulatePanelCtrl.active = true;
+                        Studio.Studio.Instance.manipulatePanelCtrl.charaPanelInfo.mpCharCtrl.fkInfo.ociChar = _character;
                         
-                        reflectAnimationToFKIK();         
-                        yield return new WaitForEndOfFrame();
+                        OICharInfo.AnimeInfo _aniInfo = _character.oiCharInfo.animeInfo;                  
+                        Animator _animator = _character.charAnimeCtrl.animator;
 
-                        // 초기 프레임 저장 및 이전 상태 생성
-                        prevInterpolableValues.AddRange(GetCurrentValueFromInterpolables(enabledInterpolables));
-                        generatedKeyPairs.AddRange(AddKeyframes(enabledInterpolables, startTime));
+                        // speed set to none-zero
+                        AnimatorStateInfo stateInfo = _animator.GetCurrentAnimatorStateInfo(0);
 
-                        while (isAutoGenerating)
-                        {
-                            Studio.Studio.Instance.manipulatePanelCtrl.active = true;
+                        if (stateInfo.loop == true) {                        
+                            Logger.LogMessage($"Start Generating for loop");
+                        
+                            isAutoGenerating = true;
+                        
+                            List<KeyValuePair<float, Keyframe>> generatedKeyPairs = new List<KeyValuePair<float, Keyframe>>();
 
-                            reflectAnimationToFKIK(); 
+                            Stopwatch stopWatch = new Stopwatch();
+                            Stopwatch idleWatch = new Stopwatch();
+                                                
+                            reflectAnimationToFKIK();  
                             yield return new WaitForEndOfFrame();
-
-                            if (_animation_cnt % 5 == 0) {
-                                if (stopWatch.ElapsedMilliseconds > 0.0f) {
-                                    _keyframe = startTime + stopWatch.ElapsedMilliseconds/1000.0f;
-
-                                    int genCount = generatedKeyPairs.Count;
-                                    for (int idx=0; idx < enabledInterpolables.Count; idx++) {    
-
-                                        object a1 = enabledInterpolables[idx].GetValue();
-                                        object a2 = prevInterpolableValues[idx];
-                                        
-                                        if (a1 is System.Single[] arr && a2 is System.Single[] arrOther) {
-                                            if (!arr.SequenceEqual(arrOther)) {
-                                                generatedKeyPairs.Add(AddKeyframe(enabledInterpolables[idx], _keyframe));
-                                                prevInterpolableValues[idx] = a1;    
-                                            }
-                                        } else {
-                                            if (!a1.Equals(a2)) {
-                                                generatedKeyPairs.Add(AddKeyframe(enabledInterpolables[idx], _keyframe));
-                                                prevInterpolableValues[idx] = a1;    
-                                            }
-                                        }
-                                    }
-                                    
-                                    if (idleWatch.ElapsedMilliseconds == 0.0f || genCount < generatedKeyPairs.Count) {
-                                        idleWatch.Reset();
-                                        idleWatch.Start();
-                                    }
-
-                                    if (idleWatch.ElapsedMilliseconds/1000.0f > 3.5) {
-                                        isAutoGenerating = false;
-                                    }
-                                } else {
-                                    for (int idx=0; idx < enabledInterpolables.Count; idx++) {    
-
-                                        object a1 = enabledInterpolables[idx].GetValue();
-                                        object a2 = prevInterpolableValues[idx];                            
-
-                                        if (a1 is System.Single[] arr && a2 is System.Single[] arrOther) {
-                                            if (!arr.SequenceEqual(arrOther)) {
-                                                stopWatch.Start();
-                                                break;    
-                                            }
-                                        } else {
-                                            if (!a1.Equals(a2)) {
-                                                stopWatch.Start();
-                                                break;    
-                                            }
-                                        }
-                                    }
-                                }
-                                UpdateGrid();
-                            }
                             
-                            _animation_cnt++;
-                        }
-                    
-                        idleWatch.Stop();
-                        stopWatch.Stop();
-                                            
-                    } else {                
-                        // Logger.LogMessage($"anim {_aniInfo.category}, {_aniInfo.group}, {_aniInfo.no}");    
-                        if ((_character.oiCharInfo.enableFK && !_character.oiCharInfo.enableIK) || (_aniInfo.category == 0 && _aniInfo.group == 0 &&  _aniInfo.no == 0)) { 
-                            Logger.LogMessage($"Start Generating for pose");    
-                            isAutoGenerating = true;
-                        
-                            // pose captured                                            
-                            prevInterpolableValues.AddRange(GetLastPrevKeyframesFromInterpolables(enabledInterpolables, startTime));
-                            
-                            for (int idx=0; idx < enabledInterpolables.Count; idx++) {     
-                                object a1 = enabledInterpolables[idx].GetValue();
-                                object a2 = prevInterpolableValues[idx];
-                                
-                                if (a1 is System.Single[] arr && a2 is System.Single[] arrOther) {
-                                    if (!arr.SequenceEqual(arrOther)) {
-                                        AddKeyframe(enabledInterpolables[idx], _keyframe); 
-                                    }
-                                } else {
-                                    if (!a1.Equals(a2)) {
-                                        AddKeyframe(enabledInterpolables[idx], _keyframe);
-                                    }
-                                }
-                            }
-                        } else {
-                            isAutoGenerating = true;
-                            Logger.LogMessage($"Start Generating for onetime");
-                            
-                            float _currentNormalizedTime = 0.0f;
-                                
-                            // 캐릭터 기본 애니메이션 ik, fk 녹화
-                            _animator.Play(stateInfo.shortNameHash, 0, 0f);
-                            _animator.Update(0); // 애니메이션을 강제로 수행시켜, play 상태를 강제로 반영
-
-                            // 초기 프레임 저장     
-                            reflectAnimationToFKIK();        
+                            reflectAnimationToFKIK();         
                             yield return new WaitForEndOfFrame();
 
                             // 초기 프레임 저장 및 이전 상태 생성
                             prevInterpolableValues.AddRange(GetCurrentValueFromInterpolables(enabledInterpolables));
-                            AddKeyframes(enabledInterpolables, startTime);
-                            UpdateGrid();
+                            generatedKeyPairs.AddRange(AddKeyframes(enabledInterpolables, startTime));
 
                             while (isAutoGenerating)
                             {
-                                reflectAnimationToFKIK();
-                                yield return new WaitForEndOfFrame();                                
-                                
                                 Studio.Studio.Instance.manipulatePanelCtrl.active = true;
-                                stateInfo = _animator.GetCurrentAnimatorStateInfo(0);  
 
-                                if ((stateInfo.normalizedTime / 1.0f) >= 1.0f) {
-                                    _keyframe = startTime + 1.0f * stateInfo.length; 
-                                    
-                                    for (int idx=0; idx < enabledInterpolables.Count; idx++) {     
+                                reflectAnimationToFKIK(); 
+                                yield return new WaitForEndOfFrame();
 
-                                        object a1 = enabledInterpolables[idx].GetValue();
-                                        object a2 = prevInterpolableValues[idx];
-                                        
-                                        if (a1 is System.Single[] arr && a2 is System.Single[] arrOther) {
-                                            if (!arr.SequenceEqual(arrOther)) {
-                                                AddKeyframe(enabledInterpolables[idx], _keyframe); 
-                                            }
-                                        } else {
-                                            if (!a1.Equals(a2)) {
-                                                AddKeyframe(enabledInterpolables[idx], _keyframe);
-                                            }
-                                        }
-                                    }                                    
-                                    break;
-                                } else {
-                                    if (_animation_cnt % 5 == 0) {                                    
-                                        _currentNormalizedTime = stateInfo.normalizedTime % 1.0f;
-                                        _keyframe = startTime + _currentNormalizedTime * stateInfo.length;                      
+                                if (_animation_cnt % 5 == 0) {
+                                    if (stopWatch.ElapsedMilliseconds > 0.0f) {
+                                        _keyframe = startTime + stopWatch.ElapsedMilliseconds/1000.0f;
 
-                                        for (int idx=0; idx < enabledInterpolables.Count; idx++) {           
+                                        int genCount = generatedKeyPairs.Count;
+                                        for (int idx=0; idx < enabledInterpolables.Count; idx++) {    
+
                                             object a1 = enabledInterpolables[idx].GetValue();
                                             object a2 = prevInterpolableValues[idx];
                                             
                                             if (a1 is System.Single[] arr && a2 is System.Single[] arrOther) {
                                                 if (!arr.SequenceEqual(arrOther)) {
-                                                    AddKeyframe(enabledInterpolables[idx], _keyframe);
-                                                    prevInterpolableValues[idx] = a1; 
+                                                    generatedKeyPairs.Add(AddKeyframe(enabledInterpolables[idx], _keyframe));
+                                                    prevInterpolableValues[idx] = a1;    
                                                 }
                                             } else {
                                                 if (!a1.Equals(a2)) {
-                                                    AddKeyframe(enabledInterpolables[idx], _keyframe);
+                                                    generatedKeyPairs.Add(AddKeyframe(enabledInterpolables[idx], _keyframe));
                                                     prevInterpolableValues[idx] = a1;    
                                                 }
                                             }
                                         }
-                                        UpdateGrid();
+                                        
+                                        if (idleWatch.ElapsedMilliseconds == 0.0f || genCount < generatedKeyPairs.Count) {
+                                            idleWatch.Reset();
+                                            idleWatch.Start();
+                                        }
+
+                                        if (idleWatch.ElapsedMilliseconds/1000.0f > 3.5) {
+                                            isAutoGenerating = false;
+                                        }
+                                    } else {
+                                        for (int idx=0; idx < enabledInterpolables.Count; idx++) {    
+
+                                            object a1 = enabledInterpolables[idx].GetValue();
+                                            object a2 = prevInterpolableValues[idx];                            
+
+                                            if (a1 is System.Single[] arr && a2 is System.Single[] arrOther) {
+                                                if (!arr.SequenceEqual(arrOther)) {
+                                                    stopWatch.Start();
+                                                    break;    
+                                                }
+                                            } else {
+                                                if (!a1.Equals(a2)) {
+                                                    stopWatch.Start();
+                                                    break;    
+                                                }
+                                            }
+                                        }
                                     }
-
-                                    _animation_cnt++;
+#if FIXED_096
+                                    SetObjectCtrlDirty(_selectedOCI);
+#endif                                    
+                                    UpdateGrid();
                                 }
-                            }                                
-                        }
-                    }                                                                 
-                    // }
-                   
-                    isAutoGenerating = false;
-                    UpdateGrid();                    
-                    CloseKeyframeWindow();            
+                                
+                                _animation_cnt++;
+                            }
+                        
+                            idleWatch.Stop();
+                            stopWatch.Stop();
+                                                
+                        } else {                
+                            // Logger.LogMessage($"anim {_aniInfo.category}, {_aniInfo.group}, {_aniInfo.no}");    
+                            if ((_character.oiCharInfo.enableFK && !_character.oiCharInfo.enableIK) || (_aniInfo.category == 0 && _aniInfo.group == 0 &&  _aniInfo.no == 0)) { 
+                                Logger.LogMessage($"Start Generating for pose");    
+                                isAutoGenerating = true;
+                            
+                                // pose captured                                            
+                                prevInterpolableValues.AddRange(GetLastPrevKeyframesFromInterpolables(enabledInterpolables, startTime));
+                                
+                                for (int idx=0; idx < enabledInterpolables.Count; idx++) {     
+                                    object a1 = enabledInterpolables[idx].GetValue();
+                                    object a2 = prevInterpolableValues[idx];
+                                    
+                                    if (a1 is System.Single[] arr && a2 is System.Single[] arrOther) {
+                                        if (!arr.SequenceEqual(arrOther)) {
+                                            AddKeyframe(enabledInterpolables[idx], _keyframe); 
+                                        }
+                                    } else {
+                                        if (!a1.Equals(a2)) {
+                                            AddKeyframe(enabledInterpolables[idx], _keyframe);
+                                        }
+                                    }
+                                }
+                            } else {
+                                isAutoGenerating = true;
+                                Logger.LogMessage($"Start Generating for onetime");
+                                
+                                float _currentNormalizedTime = 0.0f;
+                                    
+                                // 캐릭터 기본 애니메이션 ik, fk 녹화
+                                _animator.Play(stateInfo.shortNameHash, 0, 0f);
+                                _animator.Update(0); // 애니메이션을 강제로 수행시켜, play 상태를 강제로 반영
 
-                    Logger.LogMessage($"End Generating");                    
+                                // 초기 프레임 저장     
+                                reflectAnimationToFKIK();        
+                                yield return new WaitForEndOfFrame();
+
+                                // 초기 프레임 저장 및 이전 상태 생성
+                                prevInterpolableValues.AddRange(GetCurrentValueFromInterpolables(enabledInterpolables));
+                                AddKeyframes(enabledInterpolables, startTime);
+#if FIXED_096
+                                SetObjectCtrlDirty(_selectedOCI);
+#endif                                 
+                                UpdateGrid();
+
+                                while (isAutoGenerating)
+                                {
+                                    reflectAnimationToFKIK();
+                                    yield return new WaitForEndOfFrame();                                
+                                    
+                                    Studio.Studio.Instance.manipulatePanelCtrl.active = true;
+                                    stateInfo = _animator.GetCurrentAnimatorStateInfo(0);  
+
+                                    if ((stateInfo.normalizedTime / 1.0f) >= 1.0f) {
+                                        _keyframe = startTime + 1.0f * stateInfo.length; 
+                                        
+                                        for (int idx=0; idx < enabledInterpolables.Count; idx++) {     
+
+                                            object a1 = enabledInterpolables[idx].GetValue();
+                                            object a2 = prevInterpolableValues[idx];
+                                            
+                                            if (a1 is System.Single[] arr && a2 is System.Single[] arrOther) {
+                                                if (!arr.SequenceEqual(arrOther)) {
+                                                    AddKeyframe(enabledInterpolables[idx], _keyframe); 
+                                                }
+                                            } else {
+                                                if (!a1.Equals(a2)) {
+                                                    AddKeyframe(enabledInterpolables[idx], _keyframe);
+                                                }
+                                            }
+                                        }                                    
+                                        break;
+                                    } else {
+                                        if (_animation_cnt % 5 == 0) {                                    
+                                            _currentNormalizedTime = stateInfo.normalizedTime % 1.0f;
+                                            _keyframe = startTime + _currentNormalizedTime * stateInfo.length;                      
+
+                                            for (int idx=0; idx < enabledInterpolables.Count; idx++) {           
+                                                object a1 = enabledInterpolables[idx].GetValue();
+                                                object a2 = prevInterpolableValues[idx];
+                                                
+                                                if (a1 is System.Single[] arr && a2 is System.Single[] arrOther) {
+                                                    if (!arr.SequenceEqual(arrOther)) {
+                                                        AddKeyframe(enabledInterpolables[idx], _keyframe);
+                                                        prevInterpolableValues[idx] = a1; 
+                                                    }
+                                                } else {
+                                                    if (!a1.Equals(a2)) {
+                                                        AddKeyframe(enabledInterpolables[idx], _keyframe);
+                                                        prevInterpolableValues[idx] = a1;    
+                                                    }
+                                                }
+                                            }
+#if FIXED_096
+                                            SetObjectCtrlDirty(_selectedOCI);
+#endif                                             
+                                            UpdateGrid();
+                                        }
+
+                                        _animation_cnt++;
+                                    }
+                                }                                
+                            }
+                        }                                                                 
+                    
+                        isAutoGenerating = false;
+#if FIXED_096
+                        SetObjectCtrlDirty(_selectedOCI);
+#endif                        
+                        UpdateGrid();                    
+                        CloseKeyframeWindow();
+
+                        Logger.LogMessage($"End Generating");                    
+                    }
+                } else {
+                    Logger.LogMessage($"FK or IK should be active for autogen");
                 }
+            } else {
+                Logger.LogMessage($"Nothing to generate for autogen");
             }
         }
         
@@ -3940,7 +4087,11 @@ namespace Timeline
                         MoveKeyframe(pair.Value, newTime);
                         _selectedKeyframes[i] = new KeyValuePair<float, Keyframe>(newTime, pair.Value);
                     }
-                UpdateKeyframeWindow(false);
+
+#if FIXED_096
+                SetObjectCtrlDirty(_selectedOCI);
+#endif                     
+                UpdateKeyframeWindow(false);                
                 UpdateGrid();
             }
         }
@@ -3959,6 +4110,9 @@ namespace Timeline
                     MoveKeyframe(pair.Value, newTime);
                     _selectedKeyframes[i] = new KeyValuePair<float, Keyframe>(newTime, pair.Value);
                 }
+#if FIXED_096
+                SetObjectCtrlDirty(_selectedOCI);
+#endif                 
                 UpdateKeyframeWindow(false);
                 UpdateGrid();
             }
@@ -4026,40 +4180,34 @@ namespace Timeline
                     }
 
                     XmlDocument doc = new XmlDocument();
-                    try
-                    {
-                        doc.LoadXml(transactionData.data);
-               
-                        // 이전 interpolable 정보 clean
-                        _selectedInterpolables.Clear();
-                        _selectedKeyframes.Clear();
+                  
+                    doc.LoadXml(transactionData.data);
+            
+                    // 이전 interpolable 정보 clean
+                    _selectedInterpolables.Clear();
+                    _selectedKeyframes.Clear();
 
-                        List<Interpolable> temp_oci_Interpolables = new List<Interpolable>();
-                        foreach (KeyValuePair<int, Interpolable> pair in _interpolables) {
-                            if(pair.Value.oci == _selectedOCI) {
-                                temp_oci_Interpolables.Add(pair.Value);
-                            }
-                        }   
-
-                        foreach (Interpolable interpolable in temp_oci_Interpolables) {
-                            RemoveInterpolableUndo(interpolable);
-                        }                        
-
-                        // 신규 interpolable 정보 update
-                        ReadInterpolableTree(doc.FirstChild, new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).ToList(), _selectedOCI);
-       
-                        if (type == 0) {     
-                            _redoStack.Push(_undoStack.Pop());
+                    List<Interpolable> temp_oci_Interpolables = new List<Interpolable>();
+                    foreach (KeyValuePair<int, Interpolable> pair in _interpolables) {
+                        if(pair.Value.oci == _selectedOCI) {
+                            temp_oci_Interpolables.Add(pair.Value);
                         }
-                        else { 
-                            _undoStack.Push(_redoStack.Pop());
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        // Console.WriteLine("exception " + ex.Message);
-                    }
+                    }   
 
+                    foreach (Interpolable interpolable in temp_oci_Interpolables) {
+                        RemoveInterpolableUndo(interpolable);
+                    }                        
+
+                    // 신규 interpolable 정보 update
+                    ReadInterpolableTree(doc.FirstChild, new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).ToList(), _selectedOCI);
+    
+                    if (type == 0) {     
+                        _redoStack.Push(_undoStack.Pop());
+                    }
+                    else { 
+                        _undoStack.Push(_redoStack.Pop());
+                    }
+                    
 #if FEATURE_UNDO_DEBUG 
                     Logger.LogMessage("UndoPopupAction");
 #endif                    
@@ -4204,6 +4352,9 @@ namespace Timeline
                 toSelect.Add(new KeyValuePair<float, Keyframe>(finalTime, newKeyframe));
             }
 
+#if FIXED_096
+            SetObjectCtrlDirty(_selectedOCI);
+#endif
             SelectKeyframes(toSelect);
             UpdateGrid();
         }
@@ -4383,7 +4534,6 @@ namespace Timeline
 #else
                 string path = Path.Combine(_singleFilesFolder, _singleFileNameField.text + ".xml");
 #endif
-                // UnityEngine.Debug.Log($"path {path}");
                 if (File.Exists(path))
                 {
                     if (!path.Contains(".xml"))
@@ -5087,21 +5237,22 @@ namespace Timeline
                 }
             }
             _selectedKeyframes.RemoveAll(elem => elem.Value == null || keyframes.Any(k => k.Value == elem.Value));
-
+#if FIXED_096
+            SetObjectCtrlDirty(_selectedOCI);
+#endif 
             UpdateGrid();
             UpdateKeyframeWindow(false);
         }
 
-#if FIXED_096_DEBUG
+#if FIXED_096
         private void SetObjectCtrlDirty(ObjectCtrlInfo objectCtrlInfo){
-            int hashcode = 0;
 
-            if (objectCtrlInfo != null)
-                hashcode = objectCtrlInfo.GetHashCode();
-
-            ObjectCtrlItem objectCtrlItem = null;
-            if (_ociControlMgmt.TryGetValue(hashcode, out objectCtrlItem)) {
-                objectCtrlItem.dirty = true;
+            if (objectCtrlInfo != null) {
+                int hashcode = objectCtrlInfo.GetHashCode();
+                ObjectCtrlItem objectCtrlItem = null;            
+                if (_ociControlMgmt.TryGetValue(hashcode, out objectCtrlItem)) {
+                    objectCtrlItem.dirty = true;
+                }
             }
         }
 #endif
@@ -5210,6 +5361,7 @@ namespace Timeline
                     break;
                 }
             }
+
             int length = 0;
             if (curve != null)
             {
@@ -5243,11 +5395,7 @@ namespace Timeline
                     display = new CurveKeyframeDisplay();
                     display.gameObject = GameObject.Instantiate(_curveKeyframePrefab);
                     display.gameObject.hideFlags = HideFlags.None;
-#if FIXED_096
-                    display.image = GetComponentInChildren<RawImage>(); // 성능 올리기
-#else
                     display.image = display.gameObject.transform.Find("RawImage").GetComponent<RawImage>();
-#endif
                     display.gameObject.transform.SetParent(_curveContainer.transform);
                     display.gameObject.transform.localScale = Vector3.one;
                     display.gameObject.transform.localPosition = Vector3.zero;
@@ -5274,6 +5422,7 @@ namespace Timeline
                     {
                         foreach (KeyValuePair<float, Keyframe> pair in _selectedKeyframes)
                             pair.Value.curve.RemoveKey(i1);
+
                         UpdateCurve();
                     }
                 };
@@ -5294,6 +5443,7 @@ namespace Timeline
                     }
                     foreach (KeyValuePair<float, Keyframe> pair in _selectedKeyframes)
                         pair.Value.curve.AddKey(k);
+
                     UpdateCurve();
                 };
                 display.dragHandler.onDrag = (e) =>
@@ -5355,6 +5505,7 @@ namespace Timeline
                                 pair.Value.curve.AddKey(curveKey);
                             }
                         }
+
                         UpdateCurve();
                     }
                 };
@@ -5365,12 +5516,13 @@ namespace Timeline
                     _tooltip.text = $"T: {k.time:0.000}, V: {k.value:0.###}\nIn: {Mathf.Atan(k.inTangent) * Mathf.Rad2Deg:0.#}, Out:{Mathf.Atan(k.outTangent) * Mathf.Rad2Deg:0.#}";
                 };
                 display.pointerEnterHandler.onPointerExit = (e) => { _tooltip.transform.parent.gameObject.SetActive(false); };
+                display.image.color = i == _selectedKeyframeCurvePointIndex ? Color.green : (Color)new Color32(44, 153, 160, 255);;
 
-                display.image.color = i == _selectedKeyframeCurvePointIndex ? Color.green : (Color)new Color32(44, 153, 160, 255);
                 display.gameObject.SetActive(true);
                 ((RectTransform)display.gameObject.transform).anchoredPosition = new Vector2(curveKeyframe.time * _curveContainer.rectTransform.rect.width, curveKeyframe.value * _curveContainer.rectTransform.rect.height);
                 ++displayIndex;
             }
+
             for (; displayIndex < _displayedCurveKeyframes.Count; ++displayIndex)
                 _displayedCurveKeyframes[displayIndex].gameObject.SetActive(false);
 
@@ -5409,6 +5561,7 @@ namespace Timeline
         private void SceneInit() {
 #if FIXED_096 
             CancelInvoke(nameof(_self.DelayCursorUpdate));
+            _playbackInterpolables.Clear();
 #endif            
             Stop(); 
             isAutoGenerating = false;
@@ -5423,29 +5576,28 @@ namespace Timeline
 #endif
 #if FEATURE_SOUND
             UnregisterSoundTimers();
-            DeleteTemporaryCache();
             _instantActionInterpolables.Clear();
+            DeleteTemporaryCache();
 #endif
 #if FIXED_096            
-            foreach (KeyValuePair<int, ObjectCtrlItem> pair in _ociControlMgmt)
-            {
-                int key = pair.Key;
-                ObjectCtrlItem ociItem = pair.Value;
+            if (_ociControlMgmt.Count > 0) {
+                foreach (KeyValuePair<int, ObjectCtrlItem> pair in _ociControlMgmt)
+                {
+                    int key = pair.Key;
+                    ObjectCtrlItem ociItem = pair.Value;
 
-                foreach (KeyframeDisplay displayItem in ociItem.displayedKeyframes)
-                    ReturnToKeyframeDisplayPool(displayItem);
-                
-                ociItem.displayedKeyframes.Clear();
-                GameObject.DestroyImmediate(ociItem.keyframeGroup);
-                ociItem = null;
+                    foreach (KeyframeDisplay displayItem in ociItem.displayedKeyframes)
+                        ReturnToKeyframeDisplayPool(displayItem);
+                    
+                    ociItem.displayedKeyframes.Clear();
+                    GameObject.DestroyImmediate(ociItem.keyframeGroup);
+                    ociItem = null;
+                }
+
+                _ociControlMgmt.Clear();
+                InitOciControlItems();
             }
-
-            // 0번을 제외한 나머지는 모두 제거
-            var value = _ociControlMgmt[0];
-            _ociControlMgmt.Clear();
-            _ociControlMgmt[0] = value; 
 #endif
-
             UpdateGrid();
         }
 #endif
@@ -6162,15 +6314,18 @@ namespace Timeline
             {
                 if(Singleton<Studio.Studio>.Instance.treeNodeCtrl.selectNodes.Count() == 0) {
                     _self._selectedOCI = null;
-#if FIXED_096_DEBUG
-                    _self.SetObjectCtrlDirty(null);
-#endif
                     _self.UpdateInterpolablesView();
                     _self.UpdateKeyframeWindow(false);
 
                     foreach (Transform child in _self._keyframesContainer.transform)
                     {
-                        child.gameObject.SetActive(false);
+                        if (child.gameObject.name.Contains("name_"))
+                        {
+                            Transform childTransform = child.gameObject.transform;
+                            Vector3 pos = childTransform.localPosition;
+                            pos.y = -20000f; // 원하는 y 값으로 변경
+                            childTransform.localPosition = pos;
+                        }                        
                     }
                 }
 
@@ -6200,7 +6355,7 @@ namespace Timeline
                     }
 
                     _self._selectedOCI = objectCtrlInfo;
-#if FIXED_096_DEBUG
+#if FIXED_096
                     if (!_self._ociControlMgmt.ContainsKey(newOciHashCode)) {
 
                         ObjectCtrlItem objectCtrlItem = new ObjectCtrlItem();
@@ -6221,13 +6376,10 @@ namespace Timeline
                         {
                             Transform childTransform = child.gameObject.transform;
                             Vector3 pos = childTransform.localPosition;
-                            pos.y = -10000f; // 원하는 y 값으로 변경
+                            pos.y = -20000f; // 원하는 y 값으로 변경
                             childTransform.localPosition = pos;
                         }
                     }
-#endif
-#if FIXED_096_DEBUG
-                    _self.SetObjectCtrlDirty(_self._selectedOCI);
 #endif
                     _self.UpdateInterpolablesView();
                     _self.UpdateKeyframeWindow(false);                               
@@ -6247,10 +6399,7 @@ namespace Timeline
 
                 if (Singleton<Studio.Studio>.Instance.dicInfo.TryGetValue(_node, out objectCtrlInfo))
                 {
-                    _self._selectedOCI = objectCtrlInfo;
-#if FIXED_096_DEBUG
-                    _self.SetObjectCtrlDirty(_self._selectedOCI);
-#endif                    
+                    _self._selectedOCI = objectCtrlInfo;                   
                     _self.UpdateInterpolablesView();
                     _self.UpdateKeyframeWindow(false);                              
                 }

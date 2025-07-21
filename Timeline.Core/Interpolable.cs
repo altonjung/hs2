@@ -16,6 +16,14 @@ namespace Timeline
         public bool enabled = true;
         public Color color = Color.white;
         public string alias = "";
+
+#if FIXED_096
+        public int playbackKeyFrameIdx = 0;
+#endif
+
+#if FEATURE_SOUND
+        public  AudioSource audioSource = null;
+#endif
         public Interpolable(ObjectCtrlInfo oci, InterpolableModel interpolableModel) : base(interpolableModel.GetParameter(oci), interpolableModel)
         {
             if (useOciInHash)

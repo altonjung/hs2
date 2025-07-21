@@ -217,31 +217,9 @@ namespace Timeline
             Timeline.AddInterpolableModel(new InterpolableModel(
                     owner: Timeline._ownerId,
                     id: "guideObjectPos",
-                    name: "Selected GuideObject Pos",
-#if FIXED_096            
-                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
-                    {
-                            Vector3 curPos = ((GuideObject)parameter).changeAmount.pos;
-                            Vector3 nextPos = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor);
-
-                            if (!curPos.Equals(nextPos))
-                            {
-                                    ((GuideObject)parameter).changeAmount.pos = nextPos;
-                            }
-                    },                                    
-                    interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => {
-                            Vector3 curPos = ((GuideObject)parameter).changeAmount.pos;
-                            Vector3 nextPos = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor);
-
-                            if (!curPos.Equals(nextPos))
-                            {
-                                    ((GuideObject)parameter).changeAmount.pos = nextPos;
-                            }
-                    },
-#else                            
+                    name: "Selected GuideObject Pos",                          
                     interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((GuideObject)parameter).changeAmount.pos = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor),
-                    interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => ((GuideObject)parameter).changeAmount.pos = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor),
-#endif                                 
+                    interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => ((GuideObject)parameter).changeAmount.pos = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor),                                
                     isCompatibleWithTarget: oci => oci != null,
 #if FEATURE_SOUND
                     getValue: (oci, parameter) => Vector3RoundTo5Decimals(((GuideObject)parameter).changeAmount.pos),
@@ -268,30 +246,8 @@ namespace Timeline
                     owner: Timeline._ownerId,
                     id: "guideObjectRot",
                     name: "Selected GuideObject Rot",
-#if FIXED_096
-                   interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
-                    {
-                            Vector3 curRot = ((GuideObject)parameter).changeAmount.rot;
-                            Vector3 nextRot = Quaternion.SlerpUnclamped((Quaternion)leftValue, (Quaternion)rightValue, factor).eulerAngles;
-
-                            if (!curRot.Equals(nextRot))
-                            {
-                                    ((GuideObject)parameter).changeAmount.rot = nextRot;
-                            }
-                    },                                    
-                    interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => {
-                            Vector3 curRot = ((GuideObject)parameter).changeAmount.rot;
-                            Vector3 nextRot = Quaternion.SlerpUnclamped((Quaternion)leftValue, (Quaternion)rightValue, factor).eulerAngles;
-
-                            if (!curRot.Equals(nextRot))
-                            {
-                                    ((GuideObject)parameter).changeAmount.rot = nextRot;
-                            }
-                    },
-#else
                     interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((GuideObject)parameter).changeAmount.rot = Quaternion.SlerpUnclamped((Quaternion)leftValue, (Quaternion)rightValue, factor).eulerAngles,
-                    interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => ((GuideObject)parameter).changeAmount.rot = Quaternion.SlerpUnclamped((Quaternion)leftValue, (Quaternion)rightValue, factor).eulerAngles,
-#endif                 
+                    interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => ((GuideObject)parameter).changeAmount.rot = Quaternion.SlerpUnclamped((Quaternion)leftValue, (Quaternion)rightValue, factor).eulerAngles,                
                     isCompatibleWithTarget: (oci) => oci != null,
 #if FEATURE_SOUND
                     getValue: (oci, parameter) => QuaternionRoundTo5Decimals(Quaternion.Euler(((GuideObject)parameter).changeAmount.rot)),
@@ -318,30 +274,8 @@ namespace Timeline
                     owner: Timeline._ownerId,
                     id: "guideObjectScale",
                     name: "Selected GuideObject Scl",
-#if FIXED_096
-                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
-                    {
-                            Vector3 curScale = ((GuideObject)parameter).changeAmount.scale;
-                            Vector3 nextScale = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor);
-
-                            if (!curScale.Equals(nextScale))
-                            {
-                                    ((GuideObject)parameter).changeAmount.scale = nextScale;
-                            }
-                    },                                    
-                    interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => {
-                            Vector3 curScale = ((GuideObject)parameter).changeAmount.scale;
-                            Vector3 nextScale = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor);
-
-                            if (!curScale.Equals(nextScale))
-                            {
-                                    ((GuideObject)parameter).changeAmount.scale = nextScale;
-                            }
-                    },
-#else
                     interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((GuideObject)parameter).changeAmount.scale = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor),
                     interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => ((GuideObject)parameter).changeAmount.scale = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor),
-#endif
  
                     isCompatibleWithTarget: (oci) => oci != null,
 #if FEATURE_SOUND
