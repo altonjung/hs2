@@ -1340,16 +1340,21 @@ namespace Timeline
                         AudioSource audioSource = oci.guideObject.gameObject.GetComponent<AudioSource>();
 
                         if (audioSource != null) {
-                                string leftValueStr = leftValue?.ToString() ?? string.Empty;
-                                Timeline.SoundItem soundSFX = JsonUtility.FromJson<Timeline.SoundItem>(leftValueStr);
+                                try {
+                                        string leftValueStr = leftValue?.ToString() ?? string.Empty;
+                                        Timeline.SoundItem soundSFX = JsonUtility.FromJson<Timeline.SoundItem>(leftValueStr);
 
-                                string soundFilePath = Path.Combine(Application.temporaryCachePath, soundSFX.fileName);
+                                        string soundFilePath = Path.Combine(Application.temporaryCachePath, soundSFX.fileName);
 
-                                string url = "file://" + soundFilePath;
+                                        string url = "file://" + soundFilePath;
 
-                                UnityEngine.Debug.Log($"timeline> play sfx sound {url}");
+                                        // UnityEngine.Debug.Log($"timeline> play sfx sound {url}");
 
-                                LoadAudio(url, audioSource, false);
+                                        LoadAudio(url, audioSource, false);
+
+                                } catch (ArgumentException ex) {
+                                        Timeline.Logger.LogMessage("Sfx Sound supported from old version");
+                                }
                         }
 
                     },
@@ -1371,16 +1376,20 @@ namespace Timeline
                         AudioSource audioSource = oci.guideObject.gameObject.GetComponent<AudioSource>();
 
                         if (audioSource != null) {
-                                string leftValueStr = leftValue?.ToString() ?? string.Empty;
-                                Timeline.SoundItem soundSFX = JsonUtility.FromJson<Timeline.SoundItem>(leftValueStr);
+                                try {
+                                        string leftValueStr = leftValue?.ToString() ?? string.Empty;
+                                        Timeline.SoundItem soundSFX = JsonUtility.FromJson<Timeline.SoundItem>(leftValueStr);
 
-                                string soundFilePath = Path.Combine(Application.temporaryCachePath, soundSFX.fileName);
+                                        string soundFilePath = Path.Combine(Application.temporaryCachePath, soundSFX.fileName);
 
-                                string url = "file://" + soundFilePath;
-                                
-                                UnityEngine.Debug.Log($"timeline> play bg sound {url}");
+                                        string url = "file://" + soundFilePath;
+                                        
+                                        // UnityEngine.Debug.Log($"timeline> play bg sound {url}");
 
-                                LoadAudio(url, audioSource, true);
+                                        LoadAudio(url, audioSource, true);
+                                } catch (ArgumentException ex) {
+                                        Timeline.Logger.LogMessage("Sfx Sound supported from old version");
+                                }
                         }
                     },
                     interpolateAfter: null,

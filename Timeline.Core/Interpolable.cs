@@ -17,7 +17,7 @@ namespace Timeline
         public Color color = Color.white;
         public string alias = "";
 
-#if FIXED_096
+#if FEATURE_ENHANCED_MGMT
         public int playbackKeyFrameIdx = 0;
 #endif
 
