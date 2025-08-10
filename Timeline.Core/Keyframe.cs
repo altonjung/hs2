@@ -7,8 +7,10 @@ namespace Timeline
     public class Keyframe
     {
         public object value;
-        public readonly Interpolable parent;
+        public Interpolable parent;
         public AnimationCurve curve;
+
+        public Timeline.KeyframeDisplay keyframeDisplay;
 
         public Keyframe(object value, Interpolable parent, AnimationCurve curve)
         {
@@ -23,5 +25,5 @@ namespace Timeline
             parent = other.parent;
             curve = new AnimationCurve(other.curve.keys);
         }
-    }
+    }   
 }
