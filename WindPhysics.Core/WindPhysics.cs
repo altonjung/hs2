@@ -4,23 +4,13 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Reflection.Emit;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Xml;
 using BepInEx.Logging;
 using ToolBox;
 using ToolBox.Extensions;
 using UILib;
-using UILib.ContextMenu;
-using UILib.EventHandlers;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
-using UnityEngine.UI;
-using System.Threading.Tasks;
-using Button = UnityEngine.UI.Button;
-using Type = System.Type;
+
 
 #if IPA
 using Harmony;
@@ -34,7 +24,12 @@ using HarmonyLib;
 using CharaUtils;
 using ExtensibleSaveFormat;
 using AIChara;
+using System.Security.Cryptography;
+using KKAPI.Studio;
 #endif
+
+// 추가 작업 예정
+// - direction 자동 360도 회전
 
 namespace WindPhysics
 {
@@ -52,9 +47,9 @@ namespace WindPhysics
     {
         #region Constants
         public const string Name = "WindPhysics";
-        public const string Version = "0.9.0";
+        public const string Version = "0.9.4";
         public const string GUID = "com.alton.illusionplugins.wind";
-        internal const string _ownerId = "WindPhysics";
+        internal const string _ownerId = "alton";
 #if KOIKATSU || AISHOUJO || HONEYSELECT2
         private const int _saveVersion = 0;
         private const string _extSaveKey = "wind_physics";
@@ -77,17 +72,18 @@ namespace WindPhysics
 
         internal static Dictionary<string, string> boneDict = new Dictionary<string, string>();
 
-#if FEATURE_AUTO_HAIR_GRAVITY
         internal static ConfigEntry<bool> ConfigKeyHairDown { get; private set; }
-#endif
+
         internal static ConfigEntry<bool> ConfigKeyEnableWind { get; private set; }
         internal static ConfigEntry<KeyboardShortcut> ConfigKeyEnableWindShortcut { get; private set; }
-        internal static ConfigEntry<KeyboardShortcut> ConfigKeyRefreshWind { get; private set; }
+        internal static ConfigEntry<KeyboardShortcut> ConfigKeyRefreshWindShortcut { get; private set; }
+
 
         // Environment    
         internal static ConfigEntry<float> WindDirection { get; private set; }
         internal static ConfigEntry<float> WindInterval { get; private set; }
         internal static ConfigEntry<float> WindBase { get; private set; }
+
 
         internal static ConfigEntry<float> WindUpward { get; private set; }
         internal static ConfigEntry<float> WindHairStrong { get; private set; }
@@ -100,11 +96,11 @@ namespace WindPhysics
         internal static ConfigEntry<float> WindClotheFrequency { get; private set; }
         internal static ConfigEntry<float> ClothDamping { get; private set; }
         internal static ConfigEntry<float> ClothStiffnessFrequency { get; private set; }
-            
+
 
         private static string _assemblyLocation;
         private bool _loaded = false;
-        private Status _status = Status.RUN;
+        private Status _status = Status.IDLE;
         private ObjectCtrlInfo _selectedOCI;
 
         private float _minY = float.MaxValue;
@@ -113,7 +109,6 @@ namespace WindPhysics
         // 위치에 따른 바람 강도
         private AnimationCurve _heightToForceCurve = AnimationCurve.Linear(0f, 1f, 1f, 0.1f); // 위로 갈수록 약함
 
-        // private AnimationCurve _heightToForceCurve = AnimationCurve.Linear(0f, 0.1f, 1f, 1f); // 위로 갈수록 강함
 
         private Coroutine _windCoroutine;
 
@@ -124,8 +119,9 @@ namespace WindPhysics
         {
             RUN,
             STOP,
-            QUIT
-        }        
+            DESTROY,
+            IDLE
+        }
 
         #endregion
 
@@ -139,14 +135,15 @@ namespace WindPhysics
         {
             base.Awake();
 
-#if FEATURE_AUTO_HAIR_GRAVITY
-            ConfigKeyHairDown = Config.Bind("Enable", "Hair down", true, "Wind enabled/disabled");
-#endif
+            ConfigKeyHairDown = Config.Bind("Options", "Hair down", false, "Wind enabled/disabled");
 
-            ConfigKeyEnableWind = Config.Bind("Config", "Toggle effect", true, "Wind enabled/disabled");
-            ConfigKeyEnableWindShortcut = Config.Bind("Config", "Toggle effect key", new KeyboardShortcut(KeyCode.W));
-            ConfigKeyRefreshWind = Config.Bind("Config", "Refresh effect", new KeyboardShortcut(KeyCode.R));
+            ConfigKeyEnableWind = Config.Bind("Options", "Toggle effect", false, "Wind enabled/disabled");
 
+            ConfigKeyEnableWindShortcut = Config.Bind("ShortKey", "Toggle effect key", new KeyboardShortcut(KeyCode.W));
+
+            ConfigKeyRefreshWindShortcut = Config.Bind("ShortKey", "Refresh effect", new KeyboardShortcut(KeyCode.R));
+
+            // 
             WindDirection = Config.Bind("Common", "Direction", 0f, new ConfigDescription("Set wind direction", new AcceptableValueRange<float>(0.0f, 359.0f)));
 
             WindInterval = Config.Bind("Common", "Interval", 2f, new ConfigDescription("Set time interval. ms to sec", new AcceptableValueRange<float>(0.0f, 10.0f)));
@@ -155,21 +152,20 @@ namespace WindPhysics
 
             WindUpward = Config.Bind("Common", "Upward", 0.1f, new ConfigDescription("Blow wind upward. higher value is more upward", new AcceptableValueRange<float>(0.0f, 5.0f)));
 
-
-            WindHairStrong = Config.Bind("_Hair", "Strong", 1f, new ConfigDescription("Set wind strong. higher value is more strong", new AcceptableValueRange<float>(0.1f, 5.0f)));
+            WindHairStrong = Config.Bind("_Hair", "Strong", 1f, new ConfigDescription("Set wind strong. higher value is more strong", new AcceptableValueRange<float>(0.1f, 10.0f)));
 
             WindHairFrequency = Config.Bind("_Hair", "Frequency", 0.5f, new ConfigDescription("Set wind frequency. higher value is more frequency", new AcceptableValueRange<float>(0.0f, 10.0f)));
 
-            HairDamping = Config.Bind("_Hair", "Damping", 0.15f, new ConfigDescription("Set hair damping. higher value is more damping", new AcceptableValueRange<float>(0.0f, 10.0f)));
+            HairDamping = Config.Bind("_Hair", "Damping", 0.15f, new ConfigDescription("Set hair damping. higher value is more damping", new AcceptableValueRange<float>(0.0f, 1.0f)));
 
             HairStiffnessFrequency = Config.Bind("_Hair", "Stiffness", 1.0f, new ConfigDescription("Set hair stiffness. higher value is more stiffness", new AcceptableValueRange<float>(0.0f, 10.0f)));
 
-
-            WindClotheStrong = Config.Bind("_Cloth", "Strong", 100f, new ConfigDescription("Set clothe wind strong. higher value is more strong", new AcceptableValueRange<float>(0.0f, 300.0f)));
+            //
+            WindClotheStrong = Config.Bind("_Cloth", "Strong", 100f, new ConfigDescription("Set clothe wind strong. higher value is more strong", new AcceptableValueRange<float>(0.0f, 500.0f)));
 
             WindClotheFrequency = Config.Bind("_Cloth", "Frequency", 0.5f, new ConfigDescription("Set clothe wind frequency. higher value is more frequency", new AcceptableValueRange<float>(0.0f, 10.0f)));
-           
-            ClothDamping = Config.Bind("_Cloth", "Damping", 0.15f, new ConfigDescription("Set hair damping. higher value is more damping", new AcceptableValueRange<float>(0.0f, 10.0f)));
+
+            ClothDamping = Config.Bind("_Cloth", "Damping", 0.15f, new ConfigDescription("Set hair damping. higher value is more damping", new AcceptableValueRange<float>(0.0f, 1.0f)));
 
             ClothStiffnessFrequency = Config.Bind("_Cloth", "Stiffness", 1.0f, new ConfigDescription("Set hair stiffness. higher value is more stiffness", new AcceptableValueRange<float>(0.0f, 10.0f)));
 
@@ -178,6 +174,9 @@ namespace WindPhysics
             Logger = base.Logger;
 
             _assemblyLocation = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+
+
+            ExtensibleSaveFormat.ExtendedSave.SceneBeingLoaded += OnSceneLoad;
 
             var harmony = HarmonyExtensions.CreateInstance(GUID);
 
@@ -205,10 +204,35 @@ namespace WindPhysics
                 ConfigKeyEnableWind.Value = !ConfigKeyEnableWind.Value;
             }
 
-            if (ConfigKeyRefreshWind.Value.IsDown())
+            if (ConfigKeyEnableWind.Value)
             {
-                ProcessDynamicBones(_selectedOCI);
+                if (_selectedOCI != null)
+                    _status = Status.RUN;
+                else
+                    _status = Status.IDLE;
             }
+            else
+            {
+                if (_status == Status.RUN)
+                    _status = Status.STOP;
+                else 
+                    _status = Status.IDLE;                
+            }
+
+            if (ConfigKeyRefreshWindShortcut.Value.IsDown())
+            {
+                if (_status == Status.IDLE)
+                    RefreshDynamicBones(_selectedOCI);
+                else
+                    AllocateDynamicBones(_selectedOCI);
+            }
+        }
+
+
+        private void OnSceneLoad(string path)
+        {
+            _status = Status.STOP;
+            _selectedOCI = null;
         }
 
         #endregion
@@ -223,6 +247,7 @@ namespace WindPhysics
             UIUtility.Init();
             _loaded = true;
         }
+
         void ApplyWind(Vector3 windBase, float factor) // 기본 바람 방향
         {
 
@@ -232,7 +257,8 @@ namespace WindPhysics
 
             foreach (var bone in _dynamicBones)
             {
-                if (bone == null || bone.m_Root == null) continue;
+                if (bone == null)
+                    continue;
 
                 float height = bone.m_Root.position.y;
 
@@ -250,78 +276,121 @@ namespace WindPhysics
             time = Time.time;
             foreach (var cloth in _clothes)
             {
-                if (cloth == null || cloth.transform == null) continue;
+                if (cloth == null)
+                    continue;
+
+                float offset = Random.Range(0f, Mathf.PI * 2f);
+                float strength = Random.Range(0.5f, 1.5f);
 
                 // 위/아래 출렁임 (Sine 함수 기반) -> 위는 강하게, 아래는 약하게 움직임..
-                float sin = Mathf.Sin(time * WindClotheFrequency.Value);
-                float verticalWave = sin * (sin >= 0f ? WindUpward.Value : 0.1f);
+                float sin = Mathf.Sin(time * WindClotheFrequency.Value + offset);
+                float verticalWave = sin * (sin >= 0f ? WindUpward.Value : 0.1f) * strength;
 
                 // 좌/우 흔들림 (PerlinNoise 기반)
-                float amplitude = 0.1f; // 좌우 진폭 크기 (값이 작을수록 진동이 느리게...)
+                float amplitude = Random.Range(0.1f, 0.5f); // 좌우 진폭 크기 (값이 작을수록 진동이 느리게...)
                 float horizontalShake = (Mathf.PerlinNoise(time * amplitude, 0f) - 0.5f) * 2.0f * 1.5f; // X축 (좌우)        
 
                 Vector3 externalWind = windBase + new Vector3(0f, verticalWave, 0f);
-                cloth.externalAcceleration = externalWind.normalized * WindClotheStrong.Value;
 
                 Vector3 randomWind = new Vector3(horizontalShake, verticalWave * 0.3f, 0f);
+                cloth.useGravity = true;
+                cloth.worldAccelerationScale = 0.5f; // 외부 가속도 반영 비율
+                cloth.worldVelocityScale = 0.5f;
                 cloth.randomAcceleration = randomWind * WindClotheStrong.Value;
                 cloth.damping = ClothDamping.Value;
                 cloth.stiffnessFrequency = ClothStiffnessFrequency.Value;
+                cloth.externalAcceleration = externalWind.normalized * WindClotheStrong.Value;
             }
         }
 
+        private IEnumerator FadeOutWind(float fadeTime)
+        {
+            float t = 0f;
+
+            // 현재 값을 저장
+            var initialRandomAcceleration = new Dictionary<Cloth, Vector3>();
+            var initialExternalAcceleration = new Dictionary<Cloth, Vector3>();
+            var initialWorldAccelScale = new Dictionary<Cloth, float>();
+            var initialWorldVelocityScale = new Dictionary<Cloth, float>();
+
+            foreach (var cloth in _clothes)
+            {
+                if (cloth == null) continue;
+
+                initialRandomAcceleration[cloth] = cloth.randomAcceleration;
+                initialExternalAcceleration[cloth] = cloth.externalAcceleration;
+                initialWorldAccelScale[cloth] = cloth.worldAccelerationScale;
+                initialWorldVelocityScale[cloth] = cloth.worldVelocityScale;
+            }
+
+            // Fade loop
+            while (t < fadeTime)
+            {
+                t += Time.deltaTime;
+
+                // Linear로 감소 (체감 시간 보장)
+                float normalized = Mathf.Clamp01(t / fadeTime);
+                float factor = 1f - normalized;
+
+                foreach (var cloth in _clothes)
+                {
+                    if (cloth == null) continue;
+
+                    cloth.randomAcceleration = initialRandomAcceleration[cloth] * factor;
+                    cloth.externalAcceleration = initialExternalAcceleration[cloth] * factor;
+                    cloth.worldAccelerationScale = initialWorldAccelScale[cloth] * factor;
+                    cloth.worldVelocityScale = initialWorldVelocityScale[cloth] * factor;
+                }
+
+                yield return null;
+            }
+        }
+        
         private void ClearWind()
         {
-            foreach (var bone in _dynamicBones)
-            {
-                if (bone != null)
-                {
-                    bone.m_Force = Vector3.zero;
-                }
-            }
+            _clothes.Clear();
+            _dynamicBones.Clear();
         }
 
         private IEnumerator WindRoutine()
         {
             while (true)
             {
-                if (_loaded == true && ConfigKeyEnableWind.Value == true && _dynamicBones.Count > 0)
+                if (_loaded == true)
                 {
-                    // y 위치 기반 바람세기 처리를 위한 위치 정보 획득
-                    foreach (var bone in _dynamicBones)
-                    {
-                        if (bone == null || bone.m_Root == null) continue;
-                        float y = bone.m_Root.position.y;
-                        _minY = Mathf.Min(_minY, y);
-                        _maxY = Mathf.Max(_maxY, y);
-                    }
-
-                    Quaternion globalRotation = Quaternion.Euler(0f, WindDirection.Value, 0f);
-
-                    // 방향에 랜덤성 부여 (약한 변화만 허용)
-                    float angleY = Random.Range(-10, 10); // 좌우 유지
-                    float angleX = Random.Range(-5, 5);   // 위/아래 유지 (음수면 아래 방향, 양수면 위 방향)
-                    Quaternion localRotation = Quaternion.Euler(angleX, angleY, 0f);
-
-                    Quaternion rotation = globalRotation * localRotation;
-
-                    Vector3 direction = rotation * Vector3.back;
-
-
-                    // 기본 바람 강도는 낮게 유지
-                    Vector3 windDirection = direction.normalized * Random.Range(0.01f, WindBase.Value);
-
-
                     if (_status == Status.RUN)
                     {
+                        // y 위치 기반 바람세기 처리를 위한 위치 정보 획득
+                        foreach (var bone in _dynamicBones)
+                        {
+                            if (bone == null)
+                                continue;
+
+                            float y = bone.m_Root.position.y;
+                            _minY = Mathf.Min(_minY, y);
+                            _maxY = Mathf.Max(_maxY, y);
+                        }
+
+                        Quaternion globalRotation = Quaternion.Euler(0f, WindDirection.Value, 0f);
+
+                        // 방향에 랜덤성 부여 (약한 변화만 허용)
+                        float angleY = Random.Range(-10, 10); // 좌우 유지
+                        float angleX = Random.Range(-5, 5);   // 위/아래 유지 (음수면 아래 방향, 양수면 위 방향)
+                        Quaternion localRotation = Quaternion.Euler(angleX, angleY, 0f);
+
+                        Quaternion rotation = globalRotation * localRotation;
+
+                        Vector3 direction = rotation * Vector3.back;
+
+                        // 기본 바람 강도는 낮게 유지
+                        Vector3 windDirection = direction.normalized * Random.Range(0.01f, WindBase.Value);
+
                         // 적용
                         ApplyWind(windDirection, 1f);
-
-                        // 바람 유지 시간
                         yield return new WaitForSeconds(0.5f);
 
                         // 자연스럽게 사라짐
-                        float fadeTime = Random.Range(0.2f, 1.5f);
+                        float fadeTime = Random.Range(0.3f, 1.5f);
                         float t = 0f;
                         while (t < fadeTime)
                         {
@@ -330,90 +399,86 @@ namespace WindPhysics
                             ApplyWind(windDirection, factor);
                             yield return null;
                         }
-
-                        // if (fadeTime > 1.0f)
-                        //     ClearWind();
 
                         // 다음 바람 전 잠깐 멈춤
                         if (WindInterval.Value > 0.1f)
                             yield return new WaitForSeconds(Random.Range(WindInterval.Value, WindInterval.Value * 2));
+
                     }
-                    else
+                    else if (_status == Status.STOP || _status == Status.DESTROY)
                     {
-                        float fadeTime = Random.Range(0.5f, 1.5f);
-                        float t = 0f;
-                        while (t < fadeTime)
+                        yield return StartCoroutine(FadeOutWind(7.0f));
+
+                        // 한번 더 pulldown 처리
+                        RefreshDynamicBones(_selectedOCI);
+
+                        if (_status == Status.DESTROY)
                         {
-                            t += Time.deltaTime;
-                            float factor = Mathf.SmoothStep(1f, 0f, t / fadeTime); // 부드러운 감소
-                            ApplyWind(windDirection, factor);
-                            yield return null;
+                            ClearWind(); // 최종 정리
                         }
-
-                        ClearWind();
-
-                        _dynamicBones.Clear();
-                        _clothes.Clear();
-                        _status = Status.RUN;
+                        
+                         _status = Status.IDLE;
                     }
+                }
 
-                }
-                else
-                {
-                    yield return null;
-                }
+                yield return null;
             }
         }
         #endregion
 
         #region Patches
-        private static async void DelayResume()
+
+        private static IEnumerator ExecuteAfterFrame(ObjectCtrlInfo objectCtrlInfo)
         {
-            await Task.Delay(3000); // 3초 대기 (밀리초 단위)
-
-            if (_self != null && _self._selectedOCI != null)
-            {
-                _self._status = Status.RUN;
-            }
-
-        }    
-
-        private static async void DelayProcessDynamicBones()
-        {
-            await Task.Delay(5000); // 5초 대기 (밀리초 단위)
-
-            if (_self != null && _self._selectedOCI != null)
-            {
-                ProcessDynamicBones(_self._selectedOCI);
-            }
+            int frameCount = 5;
+            for (int i = 0; i < frameCount; i++)
+                yield return null;
+            
+            AllocateDynamicBones(objectCtrlInfo);
         }
 
-        private static void ProcessDynamicBones(ObjectCtrlInfo objectCtrlInfo)
+        private static void RefreshDynamicBones(ObjectCtrlInfo objectCtrlInfo)
         {
             if (objectCtrlInfo != null)
             {
-                _self._status = Status.RUN;
+                foreach (var cloth in _self._clothes)
+                {
+                    if (cloth == null)
+                        continue;
+                    cloth.damping = ClothDamping.Value;
+                    cloth.stiffnessFrequency = ClothStiffnessFrequency.Value;
+                    cloth.externalAcceleration = Vector3.down * 5f;
+                }               
+            }
+        }
+        
+
+        private static void AllocateDynamicBones(ObjectCtrlInfo objectCtrlInfo)
+        {
+            if (objectCtrlInfo != null)
+            {
                 _self._selectedOCI = objectCtrlInfo;
 
-                DynamicBone[] bones = _self._selectedOCI.guideObject.transformTarget.GetComponentsInChildren<DynamicBone>(true);
                 Cloth[] cloths = _self._selectedOCI.guideObject.transformTarget.GetComponentsInChildren<Cloth>(true);
+                DynamicBone[] bones = _self._selectedOCI.guideObject.transformTarget.GetComponentsInChildren<DynamicBone>(true);
 
                 _self._clothes.Clear();
-                _self._clothes.AddRange(cloths);
-
                 foreach (var cloth in cloths)
                 {
-                    cloth.useGravity = true;
-                    cloth.worldAccelerationScale = 3.0f; // 외부 가속도 반영 비율
-                    cloth.worldVelocityScale = 1.0f;
+                    if (cloth == null || cloth.transform == null)
+                        continue;
+
+                    _self._clothes.Add(cloth);
                 }
 
-                _self._dynamicBones.Clear();
-
                 // dynamic bone (머리카락)에 대해 기본적인 gravity를 모두 자동 적용
+                _self._dynamicBones.Clear();
                 foreach (var bone in bones)
                 {
-                    if (!bone.gameObject.name.Contains("Belly") && !bone.gameObject.name.Contains("Vagina") && !bone.gameObject.name.Contains("Ana"))
+                    if (bone == null || bone.m_Root == null)
+                        continue;
+
+                    if (!bone.gameObject.name.Contains("Belly") && !bone.gameObject.name.Contains("Vagina") && !bone.gameObject.name.Contains("Ana") && !bone.gameObject.name.Contains("Leg"))
                     {
 #if FEATURE_AUTO_HAIR_GRAVITY
                         if (ConfigKeyHairDown.Value == true) {
@@ -448,7 +513,7 @@ namespace WindPhysics
 
                 if (Singleton<Studio.Studio>.Instance.dicInfo.TryGetValue(_node, out objectCtrlInfo))
                 {
-                    ProcessDynamicBones(objectCtrlInfo);
+                    AllocateDynamicBones(objectCtrlInfo);
                 }
 
                 return true;
@@ -467,7 +532,7 @@ namespace WindPhysics
 
                 if (Singleton<Studio.Studio>.Instance.dicInfo.TryGetValue(_node, out objectCtrlInfo))
                 {
-                    ProcessDynamicBones(objectCtrlInfo);
+                    AllocateDynamicBones(objectCtrlInfo);
                 }
 
                 return true;
@@ -481,7 +546,7 @@ namespace WindPhysics
             {
                 if (Singleton<Studio.Studio>.Instance.treeNodeCtrl.selectNodes.Count() == 0)
                 {
-                    _self._status = Status.QUIT;
+                    _self._status = Status.DESTROY;
                     _self._selectedOCI = null;
                 }
 
@@ -494,49 +559,35 @@ namespace WindPhysics
         {
             public static void Postfix(OCIChar __instance, string _path)
             {
-                ProcessDynamicBones(__instance as ObjectCtrlInfo);
+                AllocateDynamicBones(__instance as ObjectCtrlInfo);
             }
         }
 
-        [HarmonyPatch(typeof(ChaControl), "UpdateClothesStateAll")]
-        internal static class ChaControl_UpdateClothesStateAll_Patches
+        [HarmonyPatch(typeof(ChaControl), nameof(ChaControl.ChangeCustomClothes), typeof(int), typeof(bool), typeof(bool), typeof(bool), typeof(bool))]        
+        internal static class ChaControl_ChangeCustomClothes_Patches
         {
-            public static void Postfix(ChaControl __instance)
+            public static void Postfix(ChaControl __instance, int kind, bool updateColor, bool updateTex01, bool updateTex02, bool updateTex03)
             {
-                DelayProcessDynamicBones();
+                // UnityEngine.Debug.Log($">> ChangeCustomClothes {kind}");
+                if (__instance != null)
+                {
+                    __instance.StartCoroutine(ExecuteAfterFrame(__instance.GetOCIChar() as ObjectCtrlInfo));
+                }
+            }           
+        }
+
+        [HarmonyPatch(typeof(Studio.Studio), "InitScene", typeof(bool))]
+        private static class Studio_InitScene_Patches
+        {
+            private static bool Prefix(object __instance, bool _close)
+            {
+                _self._status = Status.DESTROY;
+                _self._selectedOCI = null;
+
+                return true;
             }
         }
 
-        // [HarmonyPatch(typeof(GuideMove), nameof(GuideMove.OnPointerDown), new[] { typeof(PointerEventData) })]
-        // private static class GuideMove_OnPointerDown_Patches
-        // {
-        //     private static void Postfix()
-        //     {
-        //         _self._run = false;
-        //         DelayResume();
-        //     }
-        // }
-
-        // [HarmonyPatch(typeof(GuideRotation), nameof(GuideRotation.OnPointerDown), new[] { typeof(PointerEventData) })]
-        // private static class GuideRotation_OnPointerDown_Patches
-        // {
-        //     private static void Postfix()
-        //     {
-        //         // _self._run = false;
-        //         // DelayResume();                
-        //     }
-        // }
-
-        // [HarmonyPatch(typeof(GuideScale), nameof(GuideScale.OnPointerDown), new[] { typeof(PointerEventData) })]
-        // private static class GuideScale_OnPointerDown_Patches
-        // {
-        //     private static void Postfix()
-        //     {
-        //         _self._run = false;
-        //         DelayResume();
-        //     }
-        // }
-                
         #endregion
     }
 }
