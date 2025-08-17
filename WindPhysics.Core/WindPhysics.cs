@@ -214,9 +214,7 @@ namespace WindPhysics
             else
             {
                 if (_status == Status.RUN)
-                    _status = Status.STOP;
-                else 
-                    _status = Status.IDLE;                
+                    _status = Status.STOP;                         
             }
 
             if (ConfigKeyRefreshWindShortcut.Value.IsDown())
@@ -305,13 +303,12 @@ namespace WindPhysics
 
         private IEnumerator FadeOutWind(float fadeTime)
         {
-            float t = 0f;
+            const float step = 0.3f; // 0.3초 단위
+            int steps = Mathf.CeilToInt(fadeTime / step);
 
-            // 현재 값을 저장
+            // 초기 값 저장
             var initialRandomAcceleration = new Dictionary<Cloth, Vector3>();
             var initialExternalAcceleration = new Dictionary<Cloth, Vector3>();
-            var initialWorldAccelScale = new Dictionary<Cloth, float>();
-            var initialWorldVelocityScale = new Dictionary<Cloth, float>();
 
             foreach (var cloth in _clothes)
             {
@@ -319,33 +316,29 @@ namespace WindPhysics
 
                 initialRandomAcceleration[cloth] = cloth.randomAcceleration;
                 initialExternalAcceleration[cloth] = cloth.externalAcceleration;
-                initialWorldAccelScale[cloth] = cloth.worldAccelerationScale;
-                initialWorldVelocityScale[cloth] = cloth.worldVelocityScale;
             }
 
-            // Fade loop
-            while (t < fadeTime)
+            // Fade loop (Ease Out)
+            for (int i = 0; i < steps; i++)
             {
-                t += Time.deltaTime;
-
-                // Linear로 감소 (체감 시간 보장)
-                float normalized = Mathf.Clamp01(t / fadeTime);
-                float factor = 1f - normalized;
+                float normalized = (i + 1) / (float)steps; // 0~1
+                float factor = 1f - Mathf.Pow(1f - normalized, 3); // Ease Out Cubic
 
                 foreach (var cloth in _clothes)
                 {
                     if (cloth == null) continue;
 
-                    cloth.randomAcceleration = initialRandomAcceleration[cloth] * factor;
-                    cloth.externalAcceleration = initialExternalAcceleration[cloth] * factor;
-                    cloth.worldAccelerationScale = initialWorldAccelScale[cloth] * factor;
-                    cloth.worldVelocityScale = initialWorldVelocityScale[cloth] * factor;
+                    if (initialRandomAcceleration.TryGetValue(cloth, out var rnd))
+                        cloth.randomAcceleration = rnd * (1f - factor);
+
+                    if (initialExternalAcceleration.TryGetValue(cloth, out var ext))
+                        cloth.externalAcceleration = ext * (1f - factor);
                 }
 
-                yield return null;
+                yield return new WaitForSeconds(step);
             }
         }
-        
+                
         private void ClearWind()
         {
             _clothes.Clear();
@@ -407,10 +400,7 @@ namespace WindPhysics
                     }
                     else if (_status == Status.STOP || _status == Status.DESTROY)
                     {
-                        yield return StartCoroutine(FadeOutWind(7.0f));
-
-                        // 한번 더 pulldown 처리
-                        RefreshDynamicBones(_selectedOCI);
+                        yield return StartCoroutine(FadeOutWind(2.5f));                     
 
                         if (_status == Status.DESTROY)
                         {
@@ -440,11 +430,15 @@ namespace WindPhysics
         private static void RefreshDynamicBones(ObjectCtrlInfo objectCtrlInfo)
         {
             if (objectCtrlInfo != null)
-            {
+            {                
+
+                UnityEngine.Debug.Log($">> RefreshDynamicBones {_self._clothes.Count}");
+
                 foreach (var cloth in _self._clothes)
                 {
                     if (cloth == null)
                         continue;
+                        
                     cloth.damping = ClothDamping.Value;
                     cloth.stiffnessFrequency = ClothStiffnessFrequency.Value;
                     cloth.externalAcceleration = Vector3.down * 5f;
@@ -452,7 +446,6 @@ namespace WindPhysics
             }
         }
         
-
         private static void AllocateDynamicBones(ObjectCtrlInfo objectCtrlInfo)
         {
             if (objectCtrlInfo != null)
