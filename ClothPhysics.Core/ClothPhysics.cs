@@ -17,7 +17,6 @@ using UnityEngine;
 //using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 //using UnityEngine.UI;
-using System.Threading.Tasks;
 
 #if IPA
 using Harmony;
@@ -32,6 +31,7 @@ using CharaUtils;
 using ExtensibleSaveFormat;
 using AIChara;
 using System.Security.Cryptography;
+using static DynamicBone_Ver01;
 #endif
 
 namespace ClothPhysics
@@ -466,17 +466,7 @@ namespace ClothPhysics
         }
         #endregion
 
-        #region Patches
-        
-        private static async void DelayProcessDynamicBones()
-        {
-            await Task.Delay(5000); // 5초 대기 (밀리초 단위)
-
-            if (_self != null && _self._selectedOCI != null)
-            {
-                ProcessDynamicBones(_self._selectedOCI);
-            }
-        }
+        #region Patches        
 
         private static Transform GetPelvisBone(SkinnedMeshRenderer smr)
         {
@@ -490,32 +480,6 @@ namespace ClothPhysics
 
             //     if (bone == null) continue;
             //     string name = bone.name.ToLower();
-            //     // UnityEngine.Debug.Log($">> bone {name}");
-              
-            //     // if (name.Contains("cf_j_legknee_low_s_r") || name.Contains("cf_j_legup01_s_r") || name.Contains("cf_j_legup02_s_r") || name.Contains("cf_j_legupdam_s_l") || name.Contains("cf_j_foot01_l")) // cf_j_kosi02_s
-            //     // {
-            //     //     if (capsuleColliders.Length > 0)
-            //     //     {
-            //     //         UnityEngine.Debug.Log($">> found capsuleColliders {name} {capsuleColliders.Length}");
-            //     //     }
-
-            //     //     if (sphereColliders.Length > 0)
-            //     //     {
-            //     //         UnityEngine.Debug.Log($">> found capsuleColliders {name} {sphereColliders.Length}");
-            //     //     }
-
-            //     //     if (boxColliders.Length > 0)
-            //     //     {
-            //     //         UnityEngine.Debug.Log($">> found boxColliders {name} {capsuleColliders.Length}");
-            //     //     }     
-
-            //     //     if (meshColliders.Length > 0)
-            //     //     {
-            //     //         UnityEngine.Debug.Log($">> found meshColliders {name} {capsuleColliders.Length}");
-            //     //     }                                    
-            //     //     // return bone;
-            //     // }
-
             // }
 
             // // 못 찾으면 rootBone 반환 (fallback)
@@ -589,6 +553,142 @@ namespace ClothPhysics
             return bodyRenderer;
         }
 
+        private static  void CreateSphereDebugWithName(SphereCollider sphere, string name, List<GameObject> debugObjects)
+        {
+            Camera cam = Camera.main;
+            GameObject go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+
+
+            // 부모를 collider의 transform으로 지정
+            go.transform.SetParent(sphere.transform, false);
+
+            // localPosition 은 sphere.center 기준
+            go.transform.localPosition = sphere.center;
+            go.transform.localRotation = Quaternion.identity;
+            go.transform.localScale = Vector3.one * sphere.radius * 2f;
+
+            // 알파 적용
+            Renderer rend = go.GetComponent<Renderer>();            
+            SetTransparent(rend, new Color(0f, 1f, 0f, 0.1f)); // 초록 + 알파 0.1
+
+            Destroy(go.GetComponent<Collider>());
+            debugObjects.Add(go);
+
+            // 이름 텍스트 (collider 위쪽에 표시)
+            Vector3 textPos = sphere.center + Vector3.up * (sphere.radius + 0.05f);
+            CreateTextDebugLocal(sphere.transform, textPos, name, cam, debugObjects);
+        }
+
+        private static void CreateCapsuleDebugWithName(CapsuleCollider capsule, string name, List<GameObject> debugObjects)
+        {
+            Camera cam = Camera.main;
+
+            // 부모 기준으로 생성
+            GameObject root = new GameObject(capsule.name + "_CapsuleDebug");
+            root.transform.SetParent(capsule.transform, false);
+            root.transform.localPosition = capsule.center;
+            root.transform.localRotation = Quaternion.identity;
+
+            // 캡슐은 Unity Primitive 로는 직접 만들기 어려워서,
+            // 양쪽 Sphere + Cylinder 조합으로 표시
+            GameObject topSphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            topSphere.transform.SetParent(root.transform, false);
+            topSphere.transform.localPosition = Vector3.up * (capsule.height * 0.5f - capsule.radius);
+            topSphere.transform.localScale = Vector3.one * capsule.radius * 2f;
+            topSphere.GetComponent<Renderer>().material.color = Color.green;
+            Destroy(topSphere.GetComponent<Collider>());
+            debugObjects.Add(topSphere);
+
+            GameObject bottomSphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            bottomSphere.transform.SetParent(root.transform, false);
+            bottomSphere.transform.localPosition = Vector3.down * (capsule.height * 0.5f - capsule.radius);
+            bottomSphere.transform.localScale = Vector3.one * capsule.radius * 2f;
+            bottomSphere.GetComponent<Renderer>().material.color = Color.green;
+            Destroy(bottomSphere.GetComponent<Collider>());
+            debugObjects.Add(bottomSphere);
+
+            // 가운데 Cylinder 부분
+            GameObject body = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            body.transform.SetParent(root.transform, false);
+            body.transform.localPosition = Vector3.zero;
+            body.transform.localScale = new Vector3(capsule.radius * 2f, (capsule.height * 0.5f - capsule.radius), capsule.radius * 2f);
+
+            // 알파 적용
+            Renderer rend = body.GetComponent<Renderer>();
+            SetTransparent(rend, new Color(0f, 1f, 0f, 0.1f)); // 초록 + 알파 0.1
+ 
+            Destroy(body.GetComponent<Collider>());
+            debugObjects.Add(body);
+
+            // 이름 텍스트
+            Vector3 textPos = Vector3.up * (capsule.height * 0.5f + 0.1f);
+            CreateTextDebugLocal(root.transform, textPos, name, cam, debugObjects);
+        }
+
+        // BoxCollider 디버그
+        private static void CreateBoxDebugWithName(BoxCollider box, string name, List<GameObject> debugObjects)
+        {
+            Camera cam = Camera.main;
+
+            GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            go.transform.SetParent(box.transform, false);
+            go.transform.localPosition = box.center;
+            go.transform.localRotation = Quaternion.identity;
+            go.transform.localScale = box.size;
+
+            // 알파 적용
+            Renderer rend = go.GetComponent<Renderer>();
+            SetTransparent(rend, new Color(0f, 1f, 0f, 0.1f)); // 초록 + 알파 0.1
+            
+            Destroy(go.GetComponent<Collider>());
+            debugObjects.Add(go);
+
+            // 텍스트 (박스 위)
+            Vector3 textPos = box.center + Vector3.up * (Mathf.Max(box.size.x, box.size.y, box.size.z) * 0.5f + 0.1f);
+            CreateTextDebugLocal(box.transform, textPos, name, cam, debugObjects);
+        }
+
+        private static void CreateTextDebugLocal(Transform parent, Vector3 localPos, string text, Camera cam, List<GameObject> debugObjects)
+        {
+            GameObject textObj = new GameObject("ColliderName");
+            textObj.transform.SetParent(parent, false);
+            textObj.transform.localPosition = localPos;
+
+            TextMesh tm = textObj.AddComponent<TextMesh>();
+            tm.text = text;
+            tm.fontSize = 30;
+            tm.color = Color.red;
+            tm.characterSize = 0.05f;
+            tm.anchor = TextAnchor.MiddleCenter;
+
+            // 카메라를 바라보도록
+            if (cam != null)
+                textObj.transform.rotation = Quaternion.LookRotation(textObj.transform.position - cam.transform.position);
+
+            debugObjects.Add(textObj);
+        }
+
+        private static void SetTransparent(Renderer rend, Color color)
+        {
+            Material mat = new Material(Shader.Find("Standard"));
+
+            // Rendering Mode = Transparent
+            mat.SetFloat("_Mode", 3); // 3 = Transparent
+            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            mat.SetInt("_ZWrite", 0);
+            mat.DisableKeyword("_ALPHATEST_ON");
+            mat.EnableKeyword("_ALPHABLEND_ON");
+            mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            mat.renderQueue = 3100;
+
+            // 색상 + 알파 적용
+            mat.color = color;
+
+            // Renderer에 적용
+            rend.material = mat;
+        }
+
         private static void ProcessDynamicBones(ObjectCtrlInfo objectCtrlInfo)
         {
             if (objectCtrlInfo != null)
@@ -601,17 +701,31 @@ namespace ClothPhysics
                 _self._clothes.Clear();
                 _self._originalMaxDistances.Clear();
 
+                // OCIChar character = _self._selectedOCI as OCIChar;
+                // ChaControl chaControl = character.charInfo;
 
-                // pelvis에 collider가 이미 있으면 재사용
-                // CapsuleCollider col = _self._pelvisBone.GetComponent<CapsuleCollider>();
-                // if (col == null)
-                // {
-                //     col = _self._pelvisBone.gameObject.AddComponent<CapsuleCollider>();
-                //     col.center = new Vector3(0f, 0f, -0.9f);
-                //     col.direction = 1; // Y축
-                //     col.radius = 0.7f;
-                //     col.height = 2.5f;
-                // }
+                // var clotheObjs = chaControl.objClothes;
+
+                // var clothParts = charFemale.nowCoordinate.clothes.parts;
+                List<GameObject> debugObjects = new List<GameObject>();
+
+                foreach (var bone in _self._selectedOciSmr.bones)
+                {
+                    // SphereCollider[] colliders = bone.GetComponentsInChildren<SphereCollider>();
+                    // // UnityEngine.Debug.Log($">> found collider bone  {bone.name}, {colliders.Length}");
+
+                    // foreach (var col in colliders)
+                    // {
+                    //     CreateSphereDebugWithName(col, bone.name, debugObjects);
+                    // }
+
+                    CapsuleCollider[] colliders = bone.GetComponentsInChildren<CapsuleCollider>();
+
+                    foreach (var col in colliders)
+                    {
+                        CreateCapsuleDebugWithName(col, bone.name, debugObjects);
+                    }                    
+                }
 
                 Cloth[] cloths = _self._selectedOCI.guideObject.transformTarget.GetComponentsInChildren<Cloth>(true);
                 foreach (var cloth in cloths)
@@ -657,7 +771,7 @@ namespace ClothPhysics
 
                 if (Singleton<Studio.Studio>.Instance.dicInfo.TryGetValue(_node, out objectCtrlInfo))
                 {
-                    ProcessDynamicBones(objectCtrlInfo);
+                    ProcessDynamicBones(objectCtrlInfo as OCIChar);
                 }
 
                 return true;
@@ -676,7 +790,7 @@ namespace ClothPhysics
 
                 if (Singleton<Studio.Studio>.Instance.dicInfo.TryGetValue(_node, out objectCtrlInfo))
                 {
-                    ProcessDynamicBones(objectCtrlInfo);
+                    ProcessDynamicBones(objectCtrlInfo as OCIChar);
                 }
 
                 return true;
@@ -703,19 +817,23 @@ namespace ClothPhysics
         {
             public static void Postfix(OCIChar __instance, string _path)
             {
-                ProcessDynamicBones(__instance as ObjectCtrlInfo);
-            }
-        }
-
-        [HarmonyPatch(typeof(ChaControl), "UpdateClothesStateAll")]
-        internal static class ChaControl_UpdateClothesStateAll_Patches
-        {
-            public static void Postfix(ChaControl __instance)
-            {
-                DelayProcessDynamicBones();
+                ProcessDynamicBones(__instance as OCIChar);
             }
         }
         
+        // [HarmonyPatch(typeof(ChaControl), nameof(ChaControl.ChangeCustomClothes), typeof(int), typeof(bool), typeof(bool), typeof(bool), typeof(bool))]        
+        // internal static class ChaControl_ChangeCustomClothes_Patches
+        // {
+        //     public static void Postfix(ChaControl __instance, int kind, bool updateColor, bool updateTex01, bool updateTex02, bool updateTex03)
+        //     {
+        //         // UnityEngine.Debug.Log($">> ChangeCustomClothes {kind}");
+        //         if (__instance != null)
+        //         {
+        //             __instance.StartCoroutine(ExecuteAfterFrame(__instance.GetOCIChar() as ObjectCtrlInfo));
+        //         }
+        //     }           
+        // }
+
         [HarmonyPatch(typeof(Studio.Studio), "InitScene", typeof(bool))]
         private static class Studio_InitScene_Patches
         {

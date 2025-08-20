@@ -86,16 +86,16 @@ namespace WindPhysics
 
 
         internal static ConfigEntry<float> WindUpward { get; private set; }
-        internal static ConfigEntry<float> WindHairStrong { get; private set; }
-        internal static ConfigEntry<float> WindHairFrequency { get; private set; }
+        internal static ConfigEntry<float> WindHairForce { get; private set; }
+        internal static ConfigEntry<float> WindHairAmplitude { get; private set; }
         internal static ConfigEntry<float> HairDamping { get; private set; }
-        internal static ConfigEntry<float> HairStiffnessFrequency { get; private set; }
+        internal static ConfigEntry<float> HairStiffness { get; private set; }
 
 
-        internal static ConfigEntry<float> WindClotheStrong { get; private set; }
-        internal static ConfigEntry<float> WindClotheFrequency { get; private set; }
+        internal static ConfigEntry<float> WindClotheForce { get; private set; }
+        internal static ConfigEntry<float> WindClotheAmplitude { get; private set; }
         internal static ConfigEntry<float> ClothDamping { get; private set; }
-        internal static ConfigEntry<float> ClothStiffnessFrequency { get; private set; }
+        internal static ConfigEntry<float> ClothStiffness { get; private set; }
 
 
         private static string _assemblyLocation;
@@ -144,30 +144,31 @@ namespace WindPhysics
             ConfigKeyRefreshWindShortcut = Config.Bind("ShortKey", "Refresh effect", new KeyboardShortcut(KeyCode.R));
 
             // 
-            WindDirection = Config.Bind("Common", "Direction", 0f, new ConfigDescription("Set wind direction", new AcceptableValueRange<float>(0.0f, 359.0f)));
+            WindDirection = Config.Bind("Effect_Common", "Direction", 0f, new ConfigDescription("wind direction", new AcceptableValueRange<float>(0.0f, 359.0f)));
 
-            WindInterval = Config.Bind("Common", "Interval", 2f, new ConfigDescription("Set time interval. ms to sec", new AcceptableValueRange<float>(0.0f, 10.0f)));
+            WindInterval = Config.Bind("Effect_Common", "Interval", 2f, new ConfigDescription("wind spawn interval(sec)", new AcceptableValueRange<float>(0.0f, 10.0f)));
 
-            WindBase = Config.Bind("Common", "Base", 0.7f, new ConfigDescription("Set base speed. higher value is more faster", new AcceptableValueRange<float>(0.1f, 5.0f)));
+            WindBase = Config.Bind("Effect_Common", "Strength", 0.7f, new ConfigDescription("wind base strength", new AcceptableValueRange<float>(0.1f, 5.0f)));
 
-            WindUpward = Config.Bind("Common", "Upward", 0.1f, new ConfigDescription("Blow wind upward. higher value is more upward", new AcceptableValueRange<float>(0.0f, 5.0f)));
+            WindUpward = Config.Bind("Effect_Common", "Upward", 0.1f, new ConfigDescription("wind blow upward", new AcceptableValueRange<float>(0.0f, 5.0f)));
 
-            WindHairStrong = Config.Bind("_Hair", "Strong", 1f, new ConfigDescription("Set wind strong. higher value is more strong", new AcceptableValueRange<float>(0.1f, 10.0f)));
 
-            WindHairFrequency = Config.Bind("_Hair", "Frequency", 0.5f, new ConfigDescription("Set wind frequency. higher value is more frequency", new AcceptableValueRange<float>(0.0f, 10.0f)));
+            WindHairForce = Config.Bind("Effect_Hair", "Force", 1f, new ConfigDescription("wind force applied to hairs", new AcceptableValueRange<float>(0.1f, 10.0f)));
 
-            HairDamping = Config.Bind("_Hair", "Damping", 0.15f, new ConfigDescription("Set hair damping. higher value is more damping", new AcceptableValueRange<float>(0.0f, 1.0f)));
+            WindHairAmplitude= Config.Bind("Effect_Hair", "Amplitude", 0.5f, new ConfigDescription("wind amplitude applied to hairs", new AcceptableValueRange<float>(0.0f, 10.0f)));
 
-            HairStiffnessFrequency = Config.Bind("_Hair", "Stiffness", 1.0f, new ConfigDescription("Set hair stiffness. higher value is more stiffness", new AcceptableValueRange<float>(0.0f, 10.0f)));
+            HairDamping = Config.Bind("Effect_Hair", "Damping", 0.15f, new ConfigDescription("wind damping applied to hairs", new AcceptableValueRange<float>(0.0f, 1.0f)));
+
+            HairStiffness = Config.Bind("Effect_Hair", "Stiffness", 1.0f, new ConfigDescription("wind stiffness applied to hairs", new AcceptableValueRange<float>(0.0f, 10.0f)));
 
             //
-            WindClotheStrong = Config.Bind("_Cloth", "Strong", 100f, new ConfigDescription("Set clothe wind strong. higher value is more strong", new AcceptableValueRange<float>(0.0f, 500.0f)));
+            WindClotheForce = Config.Bind("Effect_Cloth", "Force", 100f, new ConfigDescription("wind force applied to clothes", new AcceptableValueRange<float>(0.0f, 500.0f)));
 
-            WindClotheFrequency = Config.Bind("_Cloth", "Frequency", 0.5f, new ConfigDescription("Set clothe wind frequency. higher value is more frequency", new AcceptableValueRange<float>(0.0f, 10.0f)));
+            WindClotheAmplitude = Config.Bind("Effect_Cloth", "Amplitude", 0.5f, new ConfigDescription("wind amplitude applied to clothes", new AcceptableValueRange<float>(0.0f, 10.0f)));
 
-            ClothDamping = Config.Bind("_Cloth", "Damping", 0.15f, new ConfigDescription("Set hair damping. higher value is more damping", new AcceptableValueRange<float>(0.0f, 1.0f)));
+            ClothDamping = Config.Bind("Effect_Cloth", "Damping", 0.15f, new ConfigDescription("wind damping applied to clothes", new AcceptableValueRange<float>(0.0f, 1.0f)));
 
-            ClothStiffnessFrequency = Config.Bind("_Cloth", "Stiffness", 1.0f, new ConfigDescription("Set hair stiffness. higher value is more stiffness", new AcceptableValueRange<float>(0.0f, 10.0f)));
+            ClothStiffness = Config.Bind("Effect_Cloth", "Stiffness", 1.0f, new ConfigDescription("wind stiffness applied to clothes", new AcceptableValueRange<float>(0.0f, 10.0f)));
 
 
             _self = this;
@@ -262,12 +263,12 @@ namespace WindPhysics
 
                 float normalizedHeight = Mathf.InverseLerp(_minY, _maxY, height);
                 float heightFactor = _heightToForceCurve.Evaluate(normalizedHeight);
-                float timeWave = Mathf.Sin(time * WindHairFrequency.Value + height) * WindUpward.Value; // 바람의 위 아래 폭 움직임 주기
-                float timeFactor = Mathf.Lerp(0.1f, WindHairStrong.Value, timeWave); // 바람의 강약 조절 
+                float timeWave = Mathf.Sin(time * WindHairAmplitude.Value + height) * WindUpward.Value; // 바람의 위 아래 폭 움직임 주기
+                float timeFactor = Mathf.Lerp(0.1f, WindHairForce.Value, timeWave); // 바람의 강약 조절 
 
                 Vector3 adjustedWind = windBase * heightFactor * timeFactor;
                 bone.m_Damping = HairDamping.Value;
-                bone.m_Stiffness = HairStiffnessFrequency.Value;
+                bone.m_Stiffness = HairStiffness.Value;
                 bone.m_Force = adjustedWind;
             }
 
@@ -281,7 +282,7 @@ namespace WindPhysics
                 float strength = Random.Range(0.5f, 1.5f);
 
                 // 위/아래 출렁임 (Sine 함수 기반) -> 위는 강하게, 아래는 약하게 움직임..
-                float sin = Mathf.Sin(time * WindClotheFrequency.Value + offset);
+                float sin = Mathf.Sin(time * WindClotheAmplitude.Value + offset);
                 float verticalWave = sin * (sin >= 0f ? WindUpward.Value : 0.1f) * strength;
 
                 // 좌/우 흔들림 (PerlinNoise 기반)
@@ -294,10 +295,10 @@ namespace WindPhysics
                 cloth.useGravity = true;
                 cloth.worldAccelerationScale = 0.5f; // 외부 가속도 반영 비율
                 cloth.worldVelocityScale = 0.5f;
-                cloth.randomAcceleration = randomWind * WindClotheStrong.Value;
+                cloth.randomAcceleration = randomWind * WindClotheForce.Value;
                 cloth.damping = ClothDamping.Value;
-                cloth.stiffnessFrequency = ClothStiffnessFrequency.Value;
-                cloth.externalAcceleration = externalWind.normalized * WindClotheStrong.Value;
+                cloth.stiffnessFrequency = ClothStiffness.Value;
+                cloth.externalAcceleration = externalWind.normalized * WindClotheForce.Value;
             }
         }
 
@@ -440,7 +441,7 @@ namespace WindPhysics
                         continue;
                         
                     cloth.damping = ClothDamping.Value;
-                    cloth.stiffnessFrequency = ClothStiffnessFrequency.Value;
+                    cloth.stiffnessFrequency = ClothStiffness.Value;
                     cloth.externalAcceleration = Vector3.down * 5f;
                 }               
             }
@@ -502,12 +503,9 @@ namespace WindPhysics
 
             private static bool Prefix(object __instance, TreeNodeObject _node)
             {
-                ObjectCtrlInfo objectCtrlInfo = null;
+                ObjectCtrlInfo objectCtrlInfo = Studio.Studio.GetCtrlInfo(_node);
 
-                if (Singleton<Studio.Studio>.Instance.dicInfo.TryGetValue(_node, out objectCtrlInfo))
-                {
-                    AllocateDynamicBones(objectCtrlInfo);
-                }
+                AllocateDynamicBones(objectCtrlInfo as OCIChar);
 
                 return true;
             }
@@ -519,14 +517,9 @@ namespace WindPhysics
             private static bool Prefix(object __instance)
             {
 
-                TreeNodeObject _node = Singleton<Studio.Studio>.Instance.treeNodeCtrl.selectNodes[0];
+                ObjectCtrlInfo objectCtrlInfo = Studio.Studio.GetCtrlInfo(Singleton<Studio.Studio>.Instance.treeNodeCtrl.selectNodes[0]);
 
-                ObjectCtrlInfo objectCtrlInfo = null;
-
-                if (Singleton<Studio.Studio>.Instance.dicInfo.TryGetValue(_node, out objectCtrlInfo))
-                {
-                    AllocateDynamicBones(objectCtrlInfo);
-                }
+                AllocateDynamicBones(objectCtrlInfo as OCIChar);
 
                 return true;
             }
@@ -552,7 +545,7 @@ namespace WindPhysics
         {
             public static void Postfix(OCIChar __instance, string _path)
             {
-                AllocateDynamicBones(__instance as ObjectCtrlInfo);
+                AllocateDynamicBones(__instance as OCIChar);
             }
         }
 
@@ -561,10 +554,9 @@ namespace WindPhysics
         {
             public static void Postfix(ChaControl __instance, int kind, bool updateColor, bool updateTex01, bool updateTex02, bool updateTex03)
             {
-                // UnityEngine.Debug.Log($">> ChangeCustomClothes {kind}");
                 if (__instance != null)
                 {
-                    __instance.StartCoroutine(ExecuteAfterFrame(__instance.GetOCIChar() as ObjectCtrlInfo));
+                    __instance.StartCoroutine(ExecuteAfterFrame(__instance.GetOCIChar() as OCIChar));
                 }
             }           
         }

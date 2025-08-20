@@ -221,8 +221,12 @@ namespace Timeline
 
         internal static new ManualLogSource Logger;
         internal static Timeline _self;
-        private static string _assemblyLocation;
-        private static string _singleFilesFolder;
+        private static string _assemblyLocation;        
+
+        private static string _selectedFileSoundFolder;
+        private static string _selectedFileXmlFolder;
+
+        private static string _selectedFileWithExtention;
         private static bool _refreshInterpolablesListScheduled = false;
         private bool _loaded = false;
         private int _totalActiveExpressions = 0;
@@ -378,8 +382,6 @@ namespace Timeline
 #endif
         private Vector2 _cursorPoint;
 
-        private string _selected_file_path;
-
         #endregion
 
         #region Accessors
@@ -473,7 +475,9 @@ namespace Timeline
             Logger = base.Logger;
 
             _assemblyLocation = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            _singleFilesFolder = Path.Combine(_assemblyLocation, Path.Combine(Name, "Single Files"));
+            _selectedFileSoundFolder = Path.Combine(_assemblyLocation, Path.Combine(Name, "Single Files"));
+            _selectedFileXmlFolder = Path.Combine(_assemblyLocation, Path.Combine(Name, "Single Files"));
+
 
 #if HONEYSELECT
             HSExtSave.HSExtSave.RegisterHandler("timeline", null, null, this.SceneLoad, this.SceneImport, this.SceneWrite, null, null);
@@ -4129,21 +4133,18 @@ namespace Timeline
             _singleFilesPanel.SetActive(!_singleFilesPanel.activeSelf);
             if (_singleFilesPanel.activeSelf)
             {
-                bool isActive = true;
+                _singleFileNameField.text = "";
+                _singleFilesPanel.transform.Find("Main Container/Buttons/Save").gameObject.SetActive(format != "*.wav");
+                _singleFilesPanel.transform.Find("Main Container/Buttons/Delete").gameObject.SetActive(format != "*.wav");
 
                 if (format == "*.wav")
                 {
-                    isActive = false;
+                    UpdateSingleFilesPanel(_selectedFileSoundFolder, format);
                 }
-
-                _singleFileNameField.text = "";
-                _singleFilesPanel.transform.Find("Main Container/Buttons/Save").gameObject.SetActive(isActive);
-                _singleFilesPanel.transform.Find("Main Container/Buttons/Delete").gameObject.SetActive(isActive);
-
-                if (format == "*.wav")
-                    UpdateSingleFilesPanel(_singleFilesFolder + "/sfx", format);
                 else
-                    UpdateSingleFilesPanel(_singleFilesFolder, format);
+                {
+                    UpdateSingleFilesPanel(_selectedFileXmlFolder, format);
+                }
             }
         }
 
@@ -4213,16 +4214,23 @@ namespace Timeline
                 });
                 display.filePath = files[i];
                 display.pointerDownHandler.onPointerDown = (e) =>
-                {                    
-                    bool isDirectory = (File.GetAttributes(display.filePath) & FileAttributes.Directory) == FileAttributes.Directory;
-                    if (isDirectory)
+                {
+                    UnityEngine.Debug.Log($">> onPointerDown {display.filePath}");
+
+                    if (file_format == "*.wav")
                     {
-                        UpdateSingleFilesPanel(display.filePath, file_format);
-                        _selected_file_path = "";
+                        bool isDirectory = (File.GetAttributes(display.filePath) & FileAttributes.Directory) == FileAttributes.Directory;
+                        if (isDirectory)
+                        {
+                            UpdateSingleFilesPanel(display.filePath, file_format);
+                        }
+                        
+                        _selectedFileWithExtention = Path.GetFileName(display.filePath);
+                        _selectedFileSoundFolder = Path.GetDirectoryName(display.filePath);
                     }
                     else
                     {
-                        _selected_file_path = display.filePath;
+                        _selectedFileWithExtention = Path.GetFileName(display.filePath);
                     }
                 };                   
                 display.text.text = fileName;
@@ -4254,15 +4262,37 @@ namespace Timeline
                     return;
                 }
 
-                if (File.Exists(_selected_file_path))
+                if (_selectedFileWithExtention.Contains(".xml"))
                 {
-                    if (!_selected_file_path.Contains(".xml"))
+                    string path = _selectedFileXmlFolder + "\\" + _selectedFileWithExtention;
+                    if (File.Exists(path))
+                    {
+                        LoadSingle(path);
+                        Logger.LogMessage("File was loaded successfully.");
+
+#if FEATURE_AUTOGEN
+                        _duration = 10.0f;
+                        if (_singleFileNameField.text.Contains(AUTOGEN_INTERPOLABLE_FILE)) {                                               
+                            _duration = 60.0f;
+                        }
+#if FEATURE_UNDO
+                        _redoStack.Clear();
+                        _undoStack.Clear();
+#endif
+#endif
+                    }
+                }
+                else
+                {
+                    string path = _selectedFileSoundFolder + "\\" + _selectedFileWithExtention;
+
+                    if (File.Exists(path))
                     {
 #if FEATURE_SOUND
                         string soundFileName = _uuid + "_" + _singleFileNameField.text;
                         string soundFilePath = Path.Combine(Application.temporaryCachePath, soundFileName);
 
-                        File.WriteAllBytes(soundFilePath, File.ReadAllBytes(_selected_file_path));
+                        File.WriteAllBytes(soundFilePath, File.ReadAllBytes(path));
 
                         SoundItem SoundItem = new SoundItem();
                         // SoundItem.sceneName = _uuid + "";
@@ -4273,29 +4303,9 @@ namespace Timeline
                         UpdateGrid();
 #endif
                     }
-                    else
-                    {
-                        LoadSingle(_selected_file_path);
-                        Logger.LogMessage("File was loaded successfully.");
-
-#if FEATURE_AUTOGEN
-                        _duration = 10.0f;
-                        if (_singleFileNameField.text.Contains(AUTOGEN_INTERPOLABLE_FILE)) {                                               
-                            _duration = 180.0f;
-                        }
-#if FEATURE_UNDO
-                        _redoStack.Clear();
-                        _undoStack.Clear();
-#endif
-#endif
-                    }
-                    ToggleSingleFiles();
-                    UpdateGrid();
                 }
-                else
-                {
-                    Logger.LogMessage("Can't load: No file selected or the file no longer exists.");
-                }
+                ToggleSingleFiles();
+                UpdateGrid();
             }
             catch (Exception e)
             {
@@ -4314,23 +4324,22 @@ namespace Timeline
                     return;
                 }
 
-                string selected = _singleFileNameField.text?.Trim();
-                _singleFileNameField.text = selected;
+                string selectedFile = _singleFileNameField.text?.Trim();
+                _singleFileNameField.text = selectedFile;
 
-                if (string.IsNullOrEmpty(selected) || selected.Intersect(Path.GetInvalidPathChars()).Any())
+                if (string.IsNullOrEmpty(selectedFile) || selectedFile.Intersect(Path.GetInvalidPathChars()).Any())
                 {
                     Logger.LogMessage("Can't save: Provided name is empty or contains invalid characters.");
                     return;
                 }
 
-                if (Directory.Exists(_singleFilesFolder) == false)
-                    Directory.CreateDirectory(_singleFilesFolder);
+                if (Directory.Exists(_selectedFileXmlFolder) == false)
+                    Directory.CreateDirectory(_selectedFileXmlFolder);
 
-                string path = Path.Combine(_singleFilesFolder, selected + ".xml");
+                string path = Path.Combine(_selectedFileXmlFolder, _selectedFileWithExtention);
 
                 SaveXmlSingle(path);
-
-                UpdateSingleFilesPanel(_singleFilesFolder);
+                UpdateSingleFilesPanel(_selectedFileXmlFolder);
 
                 Logger.LogMessage("File was saved successfully.");
             }
@@ -4345,7 +4354,7 @@ namespace Timeline
         {
             try
             {
-                string path = Path.Combine(_singleFilesFolder, _singleFileNameField.text + ".xml");
+                string path = Path.Combine(_selectedFileXmlFolder, _selectedFileWithExtention);
                 if (File.Exists(path))
                 {
                     UIUtility.DisplayConfirmationDialog(result =>
@@ -4353,8 +4362,9 @@ namespace Timeline
                         if (result)
                         {
                             File.Delete(path);
-                            _singleFileNameField.text = "";
-                            // UpdateSingleFilesPanel();
+                            _singleFileNameField.text = "";                            
+
+                            UpdateSingleFilesPanel(_selectedFileXmlFolder);
                             Logger.LogMessage("File was deleted successfully.");
                         }
                     }, "Are you sure you want to delete this file?");
@@ -4370,6 +4380,7 @@ namespace Timeline
                 Logger.LogError(e);
             }
         }
+
 #if FEATURE_SOUND
         private void DeleteTemporaryCache()
         {
@@ -5281,6 +5292,10 @@ namespace Timeline
             Stop(); 
             isAutoGenerating = false;
 
+            _selectedFileSoundFolder = Path.Combine(_assemblyLocation, Path.Combine(Name, "Single Files"));
+            _selectedFileXmlFolder = Path.Combine(_assemblyLocation, Path.Combine(Name, "Single Files"));
+            _selectedFileWithExtention = "";
+
             _selectedKeyframes.Clear();
             _interpolablesTree.Clear();            
             _interpolables.Clear();            
@@ -6054,7 +6069,6 @@ namespace Timeline
                 ObjectCtrlInfo objectCtrlInfo = null;
                 if (Singleton<Studio.Studio>.Instance.dicInfo.TryGetValue(_node, out objectCtrlInfo))
                 {   
-
                     int selectedOciHashCode = 0;
                     int newOciHashCode = objectCtrlInfo.GetHashCode();
 
