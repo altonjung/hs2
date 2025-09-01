@@ -7,8 +7,8 @@
     <ProjectGuid>{0E8A5A0B-D464-4950-BA76-E23F4F74FCAB}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>ClothPhysics</RootNamespace>
-    <AssemblyName>ClothPhysics</AssemblyName>
+    <RootNamespace>ClothPhysicsVisualizer</RootNamespace>
+    <AssemblyName>ClothPhysicsVisualizer</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
@@ -148,7 +148,7 @@
     <Analyzer Include="..\packages\BepInEx.Analyzers.1.0.4\analyzers\dotnet\cs\BepInEx.Analyzers.dll" />
     <Analyzer Include="..\packages\Microsoft.Unity.Analyzers.1.19.0\analyzers\dotnet\cs\Microsoft.Unity.Analyzers.dll" />
   </ItemGroup>
-  <Import Project="..\ClothPhysics.Core\ClothPhysics.Core.projitems" Label="Shared" />
+  <Import Project="..\ClothPhysicsVisualizer.Core\ClothPhysicsVisualizer.Core.projitems" Label="Shared" />
   <Import Project="..\UIUtility\UIUtility.projitems" Label="Shared" />
   <Import Project="..\ToolBox\ToolBox.projitems" Label="Shared" />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

@@ -1,0 +1,4 @@
+D:\work\hs2\working\bin\HS2\ClothPhysicsVisualizer.dll
+D:\work\hs2\working\ClothPhysicsVisualizer.HS2\obj\Release\ClothPhysicsVisualizer.HS2.csproj.AssemblyReference.cache
+D:\work\hs2\working\ClothPhysicsVisualizer.HS2\obj\Release\ClothPhysicsVisualizer.HS2.csproj.CoreCompileInputs.cache
+D:\work\hs2\working\ClothPhysicsVisualizer.HS2\obj\Release\ClothPhysicsVisualizer.dll

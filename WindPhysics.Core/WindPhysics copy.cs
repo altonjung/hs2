@@ -508,8 +508,7 @@ namespace WindPhysics
 
                 if (_self._dynamicBones.Count > 0)
                 {
-                    if (ConfigKeyEnableWind.Value)
-                        _self._status = Status.RUN;
+                    _self._status = Status.RUN;
                 }
 
 
@@ -525,14 +524,13 @@ namespace WindPhysics
                 }
 
                 _self._clothes = clothes;
-
+             
                 _self._cloth_status = Cloth_Status.IDLE;
                 if (_self._clothes.Count > 0)
                 {
-                    _self._cloth_status = Cloth_Status.PHYSICS;                
-                    if (ConfigKeyEnableWind.Value)
-                        _self._status = Status.RUN;                       
-                }                           
+                    _self._cloth_status = Cloth_Status.PHYSICS;
+                    _self._status = Status.RUN;
+                }              
             }
         }
 
@@ -592,7 +590,7 @@ namespace WindPhysics
         {
             public static void Postfix(OCIChar __instance, string _path)
             {
-                // UnityEngine.Debug.Log($">> ChangeChara");
+                UnityEngine.Debug.Log($">> ChangeChara");
                 ChaControl chaControl = __instance.GetChaControl();
 
                 if (chaControl != null)
@@ -607,10 +605,10 @@ namespace WindPhysics
         {
             private static void Postfix(ChaControl __instance, int kind, int id, bool forceChange)
             {
-                // UnityEngine.Debug.Log($">> ChangeClothes kind: {kind}, forceChange: {forceChange}");
+                UnityEngine.Debug.Log($">> ChangeClothes kind: {kind}, forceChange: {forceChange}");
                 __instance.StartCoroutine(ExecuteDynamicBoneAfterFrame(__instance.GetOCIChar()));
             }        
-        }
+        }  
 
         [HarmonyPatch(typeof(ChaControl), nameof(ChaControl.SetAccessoryStateAll), typeof(bool))]
         internal static class ChaControl_SetAccessoryStateAll_Patches
@@ -619,7 +617,7 @@ namespace WindPhysics
             {
                 if (__instance != null)
                 {
-                    // UnityEngine.Debug.Log($"change SetAccessoryStateAll {show}");
+                    UnityEngine.Debug.Log($"change SetAccessoryStateAll {show}");
                     __instance.StartCoroutine(ExecuteDynamicBoneAfterFrame(__instance.GetOCIChar()));        
                 }
             }
