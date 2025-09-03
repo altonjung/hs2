@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Xml;
 using BepInEx.Logging;
 using ToolBox;
 using ToolBox.Extensions;
@@ -33,6 +34,7 @@ using static RootMotion.FinalIK.IKSolver;
 using IllusionUtility.GetUtility;
 using ADV.Commands.Object;
 using static Illusion.Utils;
+using static ADV.TextScenario;
 
 #endif
 
@@ -67,10 +69,14 @@ namespace ClothPhysicsVisualizer
         public override string[] Filter { get { return new[] { "StudioNEO_32", "StudioNEO_64" }; } }
 #endif
 
+        private const string GROUP_CAPSULE_COLLIDER = "Group: (C)Colliders";
+        private const string GROUP_SPHERE_COLLIDER = "Group: (S)Colliders";
+        private const string GROUND_COLLIDER_NAME = "Cloth colliders support_flat_ground";
+
         #region Private Types
         #endregion
 
-        #region Private Variables
+        #region Private Variables        
 
         internal static new ManualLogSource Logger;
         internal static ClothPhysicsVisualizer _self;
@@ -82,7 +88,7 @@ namespace ClothPhysicsVisualizer
 
         private ObjectCtrlInfo _selectedOCI;
 
-        private Dictionary<OCIChar, PhysicCollider> _ociCharColliders = new Dictionary<OCIChar, PhysicCollider>();
+        private Dictionary<OCIChar, PhysicCollider> _ociCharMgmt = new Dictionary<OCIChar, PhysicCollider>();
 
         internal enum Cloth_Status
         {
@@ -115,10 +121,12 @@ namespace ClothPhysicsVisualizer
 
             _assemblyLocation = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 
+#if FEATURE_SCENE_SAVE
             ExtensibleSaveFormat.ExtendedSave.SceneBeingLoaded += OnSceneLoad;
-
+            ExtensibleSaveFormat.ExtendedSave.SceneBeingImported += OnSceneImport;
+            ExtensibleSaveFormat.ExtendedSave.SceneBeingSaved += OnSceneSave;
+#endif
             var harmony = HarmonyExtensions.CreateInstance(GUID);
-
             harmony.PatchAll(Assembly.GetExecutingAssembly());
         }
 
@@ -137,12 +145,291 @@ namespace ClothPhysicsVisualizer
                 return;
         }
 
-
-        private void OnSceneLoad(string path)
+        private void SceneInit()
         {
-            _selectedOCI = null;
+            foreach (var kvp in _ociCharMgmt)
+            {
+                var key = kvp.Key;
+                PhysicCollider value = kvp.Value;
+                InitCollider(value);
+            }
+
+            _ociCharMgmt.Clear();
+            _selectedOCI = null;            
         }
 
+#if FEATURE_SCENE_SAVE
+        private void OnSceneLoad(string path)
+        {
+            SceneInit();
+            PluginData data = ExtendedSave.GetSceneExtendedDataById(_extSaveKey);
+            if (data == null)
+                return;
+            XmlDocument doc = new XmlDocument();
+            doc.LoadXml((string)data.data["sceneInfo"]);
+            XmlNode node = doc.FirstChild;
+            if (node == null)
+                return;
+            SceneLoad(path, node);
+        }
+
+        private void OnSceneImport(string path)
+        {
+            PluginData data = ExtendedSave.GetSceneExtendedDataById(_extSaveKey);
+            if (data == null)
+                return;
+            XmlDocument doc = new XmlDocument();
+            doc.LoadXml((string)data.data["sceneInfo"]);
+            XmlNode node = doc.FirstChild;
+            if (node == null)
+                return;
+            SceneImport(path, node);
+        }
+
+        private void OnSceneSave(string path)
+        {
+            using (StringWriter stringWriter = new StringWriter())
+            using (XmlTextWriter xmlWriter = new XmlTextWriter(stringWriter))
+            {
+                xmlWriter.WriteStartElement("root");
+                SceneWrite(path, xmlWriter);
+                xmlWriter.WriteEndElement();
+
+                PluginData data = new PluginData();
+                data.version = ClothPhysicsVisualizer._saveVersion;
+                data.data.Add("sceneInfo", stringWriter.ToString());
+
+                // UnityEngine.Debug.Log($">> visualizer sceneInfo {stringWriter.ToString()}");
+
+                ExtendedSave.SetSceneExtendedDataById(_extSaveKey, data);
+            }
+        }
+
+        private void SceneLoad(string path, XmlNode node)
+        {
+            if (node == null)
+                return;
+            this.ExecuteDelayed2(() =>
+            {
+                List<KeyValuePair<int, ObjectCtrlInfo>> dic = new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).ToList();
+
+                List<OCIChar> ociChars = dic
+                    .Select(kv => kv.Value as OCIChar)   // ObjectCtrlInfo → OCIChar
+                    .Where(c => c != null)               // null 제거 (OCIChar가 아닌 경우 스킵)
+                    .ToList();
+
+                SceneRead(node, ociChars);
+
+                // delete collider treeNodeObjects
+                List<TreeNodeObject> deleteTargets = new List<TreeNodeObject>();
+                foreach (TreeNodeObject treeNode in Singleton<Studio.Studio>.Instance.treeNodeCtrl.m_TreeNodeObject)
+                {
+                    if (treeNode.m_TextName.text == GROUP_CAPSULE_COLLIDER || treeNode.m_TextName.text == GROUP_SPHERE_COLLIDER)
+                    {
+                        treeNode.enableDelete = true;
+                        deleteTargets.Add(treeNode);
+                    }
+                }
+
+                foreach (TreeNodeObject target  in deleteTargets)
+                {
+                    Singleton<Studio.Studio>.Instance.treeNodeCtrl.DeleteNode(target );
+                }
+            }, 20);
+        }
+
+        private void SceneImport(string path, XmlNode node)
+        {
+            Dictionary<int, ObjectCtrlInfo> toIgnore = new Dictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl);
+            this.ExecuteDelayed2(() =>
+            {
+                List<KeyValuePair<int, ObjectCtrlInfo>> dic = Studio.Studio.Instance.dicObjectCtrl.Where(e => toIgnore.ContainsKey(e.Key) == false).OrderBy(e => SceneInfo_Import_Patches._newToOldKeys[e.Key]).ToList();
+
+                List<OCIChar> ociChars = dic
+                    .Select(kv => kv.Value as OCIChar)   // ObjectCtrlInfo → OCIChar
+                    .Where(c => c != null)               // null 제거 (OCIChar가 아닌 경우 스킵)
+                    .ToList();
+
+                SceneRead(node, ociChars);
+            }, 20);
+        }
+
+        private void SceneRead(XmlNode node, List<OCIChar> ociChars)
+        {            
+            foreach (XmlNode charNode in node.SelectNodes("character"))
+            {
+                string charName = charNode.Attributes["name"]?.Value;
+                if (string.IsNullOrEmpty(charName)) continue;
+
+                // 이름으로 ociChar 찾기
+                OCIChar ociChar = ociChars.FirstOrDefault(c => c.charInfo.name == charName);
+                if (ociChar == null)
+                {
+                    UnityEngine.Debug.LogWarning($">> SceneRead: Character '{charName}' not found!");
+                    continue;
+                }
+
+                // ground collider
+                CreateGroundClothColliderOnLoad(ociChar.charInfo);
+
+                // bone 노드 순회
+                foreach (XmlNode boneNode in charNode.SelectNodes("bone"))
+                {
+                    string colliderName = boneNode.Attributes["name"]?.Value;
+                    if (string.IsNullOrEmpty(colliderName)) continue;
+
+                    Transform bone = FindColliderByName(ociChar, colliderName);
+                    if (bone == null)
+                    {
+                        UnityEngine.Debug.LogWarning($">> SceneRead: collider '{colliderName}' not found in {charName}");
+                        continue;
+                    }
+
+                    // position
+                    XmlNode posNode = boneNode.SelectSingleNode("position");
+                    if (posNode != null)
+                    {
+                        bone.localPosition = new Vector3(
+                            ParseFloat(posNode.Attributes["x"]?.Value),
+                            ParseFloat(posNode.Attributes["y"]?.Value),
+                            ParseFloat(posNode.Attributes["z"]?.Value)
+                        );
+                    }
+
+                    // rotation
+                    XmlNode rotNode = boneNode.SelectSingleNode("rotation");
+                    if (rotNode != null)
+                    {
+                        bone.localEulerAngles = new Vector3(
+                            ParseFloat(rotNode.Attributes["x"]?.Value),
+                            ParseFloat(rotNode.Attributes["y"]?.Value),
+                            ParseFloat(rotNode.Attributes["z"]?.Value)
+                        );
+                    }
+
+                    // scale
+                    XmlNode scaleNode = boneNode.SelectSingleNode("scale");
+                    if (scaleNode != null)
+                    {
+                        bone.localScale = new Vector3(
+                            ParseFloat(scaleNode.Attributes["x"]?.Value),
+                            ParseFloat(scaleNode.Attributes["y"]?.Value),
+                            ParseFloat(scaleNode.Attributes["z"]?.Value)
+                        );
+                    }
+                }
+            }
+        }
+
+        private Transform FindColliderByName(OCIChar ociChar, string boneName)
+        {
+            var capColliders = ociChar.charInfo.objBodyBone
+                .transform
+                .GetComponentsInChildren<CapsuleCollider>(true);
+
+            if (capColliders.Length > 0)
+            {            
+                var cap = capColliders.FirstOrDefault(t => t.name == boneName);
+                if (cap != null)
+                    return cap.transform; // ✅ 찾으면 바로 리턴
+            }
+
+            var sphereColliders = ociChar.charInfo.objBodyBone
+                .transform
+                .GetComponentsInChildren<SphereCollider>(true);
+
+            var sphere = sphereColliders.FirstOrDefault(t => t.name == boneName);
+            return sphere != null ? sphere.transform : null;
+        }
+
+        // 유틸: 안전한 float 파싱
+        private float ParseFloat(string value)
+        {
+            if (float.TryParse(value, out float result))
+                return result;
+            return 0f;
+        }
+
+        private void SceneWrite(string path, XmlTextWriter writer)
+        {
+            UnityEngine.Debug.Log($">> visualizer SceneWrite");
+
+            foreach (OCIChar ociChar in _ociCharMgmt.Keys)
+            {
+                writer.WriteStartElement("character");
+                writer.WriteAttributeString("name", "" + ociChar.charInfo.name);
+
+                List<SphereCollider> scolliders = ociChar.charInfo.objBodyBone
+                    .transform
+                    .GetComponentsInChildren<SphereCollider>()
+                    .OrderBy(col => col.gameObject.name) // 이름 기준 정렬
+                    .ToList();
+
+                List<Transform> targetCollider = new List<Transform>();
+
+                foreach (var col in scolliders)
+                {
+                    if (col == null) continue; // Destroy 된 경우 스킵
+
+                    if (col.gameObject.name.Contains("Cloth colliders"))
+                    {
+                        targetCollider.Add(col.gameObject.transform);
+                    }
+                }
+
+                // capsule collider
+                List<CapsuleCollider> ccolliders = ociChar.charInfo.objBodyBone
+                    .transform
+                    .GetComponentsInChildren<CapsuleCollider>(true)
+                    .OrderBy(col => col.gameObject.name) // 이름 기준 정렬
+                    .ToList();
+
+                foreach (var col in ccolliders)
+                {
+
+                    if (col == null) continue; // Destroy 된 경우 스킵
+
+                    if (col.gameObject.name.Contains("Cloth colliders"))
+                    {
+                        targetCollider.Add(col.gameObject.transform);
+                    }
+                }
+
+                UnityEngine.Debug.Log($">> visualizer targetCollider {targetCollider.Count}");
+
+                foreach (Transform bone in targetCollider)
+                {
+                    writer.WriteStartElement("bone");
+                    writer.WriteAttributeString("name", bone.name);
+
+                    // position
+                    writer.WriteStartElement("position");
+                    writer.WriteAttributeString("x", bone.localPosition.x.ToString());
+                    writer.WriteAttributeString("y", bone.localPosition.y.ToString());
+                    writer.WriteAttributeString("z", bone.localPosition.z.ToString());
+                    writer.WriteEndElement();
+
+                    // rotation
+                    writer.WriteStartElement("rotation");
+                    writer.WriteAttributeString("x", bone.localEulerAngles.x.ToString());
+                    writer.WriteAttributeString("y", bone.localEulerAngles.y.ToString());
+                    writer.WriteAttributeString("z", bone.localEulerAngles.z.ToString());
+                    writer.WriteEndElement();
+
+                    // scale
+                    writer.WriteStartElement("scale");
+                    writer.WriteAttributeString("x", bone.localScale.x.ToString());
+                    writer.WriteAttributeString("y", bone.localScale.y.ToString());
+                    writer.WriteAttributeString("z", bone.localScale.z.ToString());
+                    writer.WriteEndElement();
+
+                    writer.WriteEndElement(); // bone
+                }
+
+                writer.WriteEndElement(); // character
+            }             
+        }
+#endif
         #endregion
 
         #region Public Methods
@@ -443,7 +730,9 @@ namespace ClothPhysicsVisualizer
                 if (obj == null) continue;
                 GameObject.Destroy(obj);
             }
-            if (value.flatGroundClothColliderObj != null) { Destroy(value.flatGroundClothColliderObj); }
+
+            Transform groundTransform = value.ociChar.charInfo.objBodyBone.transform.FindLoop(GROUND_COLLIDER_NAME);
+            if (groundTransform != null) { Destroy(groundTransform.gameObject); }
 
             value.debugCapsuleCollideVisibleObjects.Clear();
             value.debugSphereCollideVisibleObjects.Clear();           
@@ -474,7 +763,9 @@ namespace ClothPhysicsVisualizer
             value.debugCapsuleCollideVisibleObjects.Clear();
             value.debugSphereCollideVisibleObjects.Clear();
 
-            if (value.flatGroundClothColliderObj != null) { Destroy(value.flatGroundClothColliderObj); }
+            Transform groundTransform = value.ociChar.charInfo.objBodyBone.transform.FindLoop(GROUND_COLLIDER_NAME);
+
+            if (groundTransform != null) { Destroy(groundTransform.gameObject); }
 
 
             if (value.ociCFolder != null)
@@ -502,7 +793,7 @@ namespace ClothPhysicsVisualizer
             value.ociCFolderChild.Clear();
             value.ociSFolderChild.Clear();
             value.debugCollideRenderers.Clear();
-            _self._ociCharColliders.Remove(value.ociChar);
+            _self._ociCharMgmt.Remove(value.ociChar);
 
             if (value.ociCFolder != null && selectedTreeNodeObj != null)
             {
@@ -540,25 +831,55 @@ namespace ClothPhysicsVisualizer
             return capsule;
         }
 
-        private static void CreateGroundClothCollider(PhysicCollider physicCollider, ChaControl baseCharConctrol, List<Cloth> clothes)
+        private static void CreateGroundClothColliderOnLoad(ChaControl baseCharControl)
         {
-            // UnityEngine.Debug.Log($">> CreateGroundClothCollider");
-            // ground collider
-            Transform root_bone = baseCharConctrol.objBodyBone.transform.FindLoop("cf_J_Root");
-            // SphereCollider roundCollider = null;
-            CapsuleCollider flatCollider = null;
+            List<Cloth> clothes = baseCharControl.transform.GetComponentsInChildren<Cloth>(true).ToList();
+ 
+            if (clothes.Count > 0)
             {
-                physicCollider.flatGroundClothColliderObj = new GameObject("Cloth colliders support_flat_ground");
-                flatCollider = AddCapsuleFlatCollider(physicCollider.flatGroundClothColliderObj, root_bone);
+                Transform root_bone = baseCharControl.objBodyBone.transform.FindLoop("cf_J_Root");
+                CapsuleCollider flatCollider = null;
+
+                GameObject flatGroundClothColliderObj = new GameObject(GROUND_COLLIDER_NAME);
+                flatCollider = AddCapsuleFlatCollider(flatGroundClothColliderObj, root_bone);
 
                 foreach (Cloth cloth in clothes)
                 {
-                    var existingCapsules = cloth.capsuleColliders ?? new CapsuleCollider[0];
-
                     // 새 capsuleCollider 추가
-                    cloth.capsuleColliders = existingCapsules
-                        .Concat(new CapsuleCollider[] { flatCollider })
-                        .ToArray();
+                    cloth.capsuleColliders = new CapsuleCollider[] { flatCollider }.ToArray();
+                }
+            }           
+        }
+        private static CapsuleCollider CreateGroundClothCollider(PhysicCollider physicCollider, ChaControl baseCharConctrol)
+        {
+            CapsuleCollider flatCollider = null;
+            Transform groundTransform = baseCharConctrol.objBodyBone.transform.FindLoop(GROUND_COLLIDER_NAME);        
+
+            // ground collider
+            if (groundTransform == null)
+            {
+                Transform root_bone = baseCharConctrol.objBodyBone.transform.FindLoop("cf_J_Root");
+
+                GameObject groundObj = new GameObject(GROUND_COLLIDER_NAME);
+                flatCollider = AddCapsuleFlatCollider(groundObj, root_bone);
+            }
+            else
+            {
+                flatCollider = groundTransform.GetComponent<CapsuleCollider>();
+            }
+            return flatCollider;   
+        }
+
+        private static void UpdateGroundColliders(CapsuleCollider groundCollider, List<Cloth> clothes)
+        {
+            UnityEngine.Debug.Log($">> UpdateGroundColliders {groundCollider},{clothes.Count}");
+
+            if (groundCollider != null)
+            {
+                foreach (Cloth cloth in clothes)
+                {
+                    // 새 capsuleCollider 교체
+                    cloth.capsuleColliders = new CapsuleCollider[] { groundCollider }.ToArray();
                 }
             }
         }
@@ -571,9 +892,9 @@ namespace ClothPhysicsVisualizer
 
                 PhysicCollider physicCollider = null;
 
-                if (type == Update_Mode.CHAR_CHANGE) 
+                if (type == Update_Mode.CHAR_CHANGE)
                 {
-                    if (_self._ociCharColliders.TryGetValue(ociChar, out physicCollider))
+                    if (_self._ociCharMgmt.TryGetValue(ociChar, out physicCollider))
                     {
                         UnityEngine.Debug.Log($">> reused cache");
                         return;
@@ -582,7 +903,7 @@ namespace ClothPhysicsVisualizer
 
                 UnityEngine.Debug.Log($">> register cache");
 
-                if (_self._ociCharColliders.TryGetValue(ociChar, out physicCollider))
+                if (_self._ociCharMgmt.TryGetValue(ociChar, out physicCollider))
                 {
                     ClearPhysicCollier(physicCollider);
                 }
@@ -591,19 +912,19 @@ namespace ClothPhysicsVisualizer
                 physicCollider.ociChar = ociChar;
                 _self._selectedOCI = ociChar;
 
-                ChaControl baseCharConctrol = ociChar.charInfo;
+                ChaControl baseCharControl = ociChar.charInfo;
 
                 List<GameObject> physicsClothes = new List<GameObject>();
 
                 int idx = 0;
-                foreach (var cloth in baseCharConctrol.objClothes)
-                {                    
+                foreach (var cloth in baseCharControl.objClothes)
+                {
                     if (cloth == null)
                     {
                         idx++;
                         continue;
                     }
-                    
+
                     physicCollider.clothInfos[idx].clothObj = cloth;
 
                     if (cloth.GetComponentsInChildren<Cloth>().Length > 0)
@@ -622,29 +943,27 @@ namespace ClothPhysicsVisualizer
                 if (physicsClothes.Count > 0)
                 {
                     ociChar.treeNodeObject.enableAddChild = true;
-                    physicCollider.ociCFolder = CreateOCIFolder(ociChar, "Group: (C)Colliders", ociChar.treeNodeObject);
-                    physicCollider.ociSFolder = CreateOCIFolder(ociChar, "Group: (S)Colliders", ociChar.treeNodeObject);
+                    physicCollider.ociCFolder = CreateOCIFolder(ociChar, GROUP_CAPSULE_COLLIDER, ociChar.treeNodeObject);
+                    physicCollider.ociSFolder = CreateOCIFolder(ociChar, GROUP_SPHERE_COLLIDER, ociChar.treeNodeObject);
 
                     physicCollider.ociCFolder.treeNodeObject.enableAddChild = true;
                     physicCollider.ociSFolder.treeNodeObject.enableAddChild = true;
+                }
 
 
-                    List<Cloth> clothes = new List<Cloth>();
-
-                    foreach (var cloth in physicsClothes)
-                    {
-                        clothes.Add(cloth.GetComponentsInChildren<Cloth>()[0]);
-                    }
-
-                    CreateGroundClothCollider(physicCollider, baseCharConctrol, clothes);
+                List<Cloth> clothes = baseCharControl.transform.GetComponentsInChildren<Cloth>(true).ToList();
+                if (clothes.Count > 0)
+                {
+                    CapsuleCollider groundCollider = CreateGroundClothCollider(physicCollider, baseCharControl);
+                    UpdateGroundColliders(groundCollider, clothes);
                 }
 
                 {
                     // sphere collider
-                    if (baseCharConctrol.objBodyBone != null && physicCollider.ociSFolder != null)
+                    if (baseCharControl.objBodyBone != null && physicCollider.ociSFolder != null)
                     {
 
-                        List<SphereCollider> scolliders = baseCharConctrol.objBodyBone
+                        List<SphereCollider> scolliders = baseCharControl.objBodyBone
                             .transform
                             .GetComponentsInChildren<SphereCollider>()
                             .OrderBy(col => col.gameObject.name) // 이름 기준 정렬
@@ -677,9 +996,9 @@ namespace ClothPhysicsVisualizer
                         }
 
                         // capsule collider
-                        List<CapsuleCollider> ccolliders = baseCharConctrol.objBodyBone
+                        List<CapsuleCollider> ccolliders = baseCharControl.objBodyBone
                             .transform
-                            .GetComponentsInChildren<CapsuleCollider>()
+                            .GetComponentsInChildren<CapsuleCollider>(true)
                             .OrderBy(col => col.gameObject.name) // 이름 기준 정렬
                             .ToList();
 
@@ -716,8 +1035,7 @@ namespace ClothPhysicsVisualizer
                         physicCollider.ociSFolder.treeNodeObject.enableAddChild = false;
                     }
 
-                    UnityEngine.Debug.Log($">> physicCollider {physicCollider.clothInfos[0].clothObj}");
-                    _self._ociCharColliders.Add(ociChar, physicCollider);
+                    _self._ociCharMgmt.Add(ociChar, physicCollider);
 
                     // parent 구성 후 UI 업데이트                 
                     Singleton<Studio.Studio>.Instance.treeNodeCtrl.RefreshHierachy();
@@ -739,16 +1057,27 @@ namespace ClothPhysicsVisualizer
             if (ociChar != null)
             {
                 PhysicCollider value = null;
-                if (_self._ociCharColliders.TryGetValue(ociChar, out value))
+                if (_self._ociCharMgmt.TryGetValue(ociChar, out value))
                 {
                     ClearPhysicCollier(value);
-                    _self._ociCharColliders.Remove(ociChar);
+                    _self._ociCharMgmt.Remove(ociChar);
                 }
 
                 _self._selectedOCI = null;
 
             }
         }
+
+        [HarmonyPatch(typeof(SceneInfo), "Import", new[] { typeof(BinaryReader), typeof(Version) })]
+        private static class SceneInfo_Import_Patches //This is here because I fucked up the save format making it impossible to import scenes correctly
+        {
+            internal static readonly Dictionary<int, int> _newToOldKeys = new Dictionary<int, int>();
+
+            private static void Prefix()
+            {
+                _newToOldKeys.Clear();
+            }
+        }        
 
         [HarmonyPatch(typeof(WorkspaceCtrl), nameof(WorkspaceCtrl.OnSelectSingle), typeof(TreeNodeObject))]
         internal static class WorkspaceCtrl_OnSelectSingle_Patches
@@ -768,7 +1097,7 @@ namespace ClothPhysicsVisualizer
 
                     if (_node.parent != null)
                     {
-                        if (_self._ociCharColliders.TryGetValue(ociCollider.ociChar, out var physicCollider))
+                        if (_self._ociCharMgmt.TryGetValue(ociCollider.ociChar, out var physicCollider))
                         {
                             Collider collider = null;
                             if (physicCollider.ociCFolderChild.TryGetValue(_node, out collider))
@@ -787,24 +1116,6 @@ namespace ClothPhysicsVisualizer
                 return true;
             }
         }
-
-        // [HarmonyPatch(typeof(WorkspaceCtrl), nameof(WorkspaceCtrl.OnDeselectSingle), typeof(TreeNodeObject))]
-        // internal static class WorkspaceCtrl_OnDeselectSingle_Patches
-        // {
-        //     private static bool Prefix(object __instance, TreeNodeObject _node)
-        //     {
-        //         if (Singleton<Studio.Studio>.Instance.treeNodeCtrl.selectNodes.Count() == 0)
-        //         {
-        //             if (_self._selectedOCI != null)
-        //             {
-        //                 DeselectNode(_self._selectedOCI);
-        //                 _self._selectedOCI = null;
-        //             }
-        //         }
-
-        //         return true;
-        //     }
-        // }    
 
         [HarmonyPatch(typeof(WorkspaceCtrl), nameof(WorkspaceCtrl.OnDeleteNode), typeof(TreeNodeObject))]
         internal static class WorkspaceCtrl_OnDeleteNode_Patches
@@ -843,7 +1154,7 @@ namespace ClothPhysicsVisualizer
                 UnityEngine.Debug.Log($">> ChangeClothes");
                 bool shouldReallocation = true;
                 PhysicCollider physicCollider = null;
-                if (_self._ociCharColliders.TryGetValue(__instance.GetOCIChar(), out physicCollider))
+                if (_self._ociCharMgmt.TryGetValue(__instance.GetOCIChar(), out physicCollider))
                 {
                     if (physicCollider.clothInfos[kind] != null)
                     {                    
@@ -855,16 +1166,23 @@ namespace ClothPhysicsVisualizer
                             {
                                 shouldReallocation = false;
                             }
-                        }
-                                          
-                        // UnityEngine.Debug.Log($">> oldClothObj, {physicCollider.clothInfos[kind].hasCloth}");
-                        if (newClothObj != null)
-                            UnityEngine.Debug.Log($">> newClothObj, {newClothObj.name}, {newClothObj.GetComponentsInChildren<Cloth>().Length}");
-
+                        }                                        
                     }
 
                     if (shouldReallocation)
-                        __instance.StartCoroutine(ExecuteAfterFrame(__instance.GetOCIChar(), Update_Mode.DRESS_CHANGE));   
+                        __instance.StartCoroutine(ExecuteAfterFrame(__instance.GetOCIChar(), Update_Mode.DRESS_CHANGE));
+                    else
+                    {
+                        // 옷 부분 변경 시 물리 옷이 없는 옷의 경우에도 ground collider 대상으로 상태 update 는 해줘야 함
+
+                        CapsuleCollider capsuleCollider = CreateGroundClothCollider(physicCollider, __instance.GetOCIChar().charInfo);
+                        UnityEngine.Debug.Log($">> capsuleCollider {capsuleCollider}");                                 
+           
+                        if (capsuleCollider != null)
+                        {                        
+                            UpdateGroundColliders(capsuleCollider, __instance.GetOCIChar().charInfo.transform.GetComponentsInChildren<Cloth>(true).ToList());
+                        }                        
+                    }
                 }                    
             }
         }
@@ -887,16 +1205,7 @@ namespace ClothPhysicsVisualizer
         {
             private static bool Prefix(object __instance, bool _close)
             {
-                foreach (var kvp in _self._ociCharColliders)
-                {
-                    var key = kvp.Key;
-                    PhysicCollider value = kvp.Value;
-                    InitCollider(value);
-                }
-
-                _self._ociCharColliders.Clear();
-                _self._selectedOCI = null;
-
+                _self.SceneInit();
                 return true;
             }
         }
@@ -913,16 +1222,16 @@ namespace ClothPhysicsVisualizer
 
                 if (ociChar != null)
                 {
-                    if (_self._ociCharColliders.TryGetValue(ociChar, out var physicCollider))
+                    if (_self._ociCharMgmt.TryGetValue(ociChar, out var physicCollider))
                     {
-                        if (__instance.folderInfo.name == "Group: (C)Colliders")
+                        if (__instance.folderInfo.name == GROUP_CAPSULE_COLLIDER)
                         {
                             foreach (var visibleObject in physicCollider.debugCapsuleCollideVisibleObjects)
                             {
                                 visibleObject.SetActive(_visible);
                             }
                         }
-                        else if (__instance.folderInfo.name == "Group: (S)Colliders")
+                        else if (__instance.folderInfo.name == GROUP_SPHERE_COLLIDER)
                         {
                             foreach (var visibleObject in physicCollider.debugSphereCollideVisibleObjects)
                             {
@@ -997,16 +1306,12 @@ namespace ClothPhysicsVisualizer
 
         public Dictionary<Collider, List<Renderer>> debugCollideRenderers = new Dictionary<Collider, List<Renderer>>();
 
-        // public Dictionary<DynamicBoneCollider, List<Renderer>> debugDynamicRenderers = new Dictionary<DynamicBoneCollider, List<Renderer>>();
-
         public OCIFolder ociCFolder;
         public OCIFolder ociSFolder;
 
         public Dictionary<TreeNodeObject, Collider> ociCFolderChild = new Dictionary<TreeNodeObject, Collider>();
 
         public Dictionary<TreeNodeObject, Collider> ociSFolderChild = new Dictionary<TreeNodeObject, Collider>();
-
-        public GameObject flatGroundClothColliderObj;
 
         public PhysicCollider()
         {
@@ -1026,29 +1331,24 @@ namespace ClothPhysicsVisualizer
 
         public override void OnAttach(TreeNodeObject _parent, ObjectCtrlInfo _child)
         {
-            //  UnityEngine.Debug.Log($">> OnAttach {_parent}, {_child}");
         }
 
         public override void OnDetach()
         {
-            // UnityEngine.Debug.Log($">> OnDetach ");
         }
 
         public override void OnDetachChild(ObjectCtrlInfo _child) { }
 
         public override void OnSelect(bool _select)
         {
-            // UnityEngine.Debug.Log($">> OnSelect {_select}");
         }
 
         public override void OnLoadAttach(TreeNodeObject _parent, ObjectCtrlInfo _child)
         {
-            // UnityEngine.Debug.Log($">> OnLoadAttach {_parent}");
         }
 
         public override void OnVisible(bool _visible)
         {
-            // UnityEngine.Debug.Log($">> OnVisible {_visible}");
         }
     }
 }
