@@ -71,8 +71,10 @@ namespace ClothPhysicsVisualizer
 
         private const string GROUP_CAPSULE_COLLIDER = "Group: (C)Colliders";
         private const string GROUP_SPHERE_COLLIDER = "Group: (S)Colliders";
-        private const string GROUND_COLLIDER_NAME = "Cloth colliders support_flat_ground";
 
+#if FEATURE_GROUND_COLLIDER        
+        private const string GROUND_COLLIDER_NAME = "Cloth colliders support_flat_ground";
+#endif
         #region Private Types
         #endregion
 
@@ -98,8 +100,8 @@ namespace ClothPhysicsVisualizer
 
         internal enum Update_Mode
         {
-            CHAR_CHANGE,
-            DRESS_CHANGE
+            SELECTION,
+            CHANGE
         }        
 
         #endregion
@@ -233,7 +235,7 @@ namespace ClothPhysicsVisualizer
 
                 foreach (TreeNodeObject target  in deleteTargets)
                 {
-                    Singleton<Studio.Studio>.Instance.treeNodeCtrl.DeleteNode(target );
+                    Singleton<Studio.Studio>.Instance.treeNodeCtrl.DeleteNode(target);
                 }
             }, 20);
         }
@@ -265,12 +267,14 @@ namespace ClothPhysicsVisualizer
                 OCIChar ociChar = ociChars.FirstOrDefault(c => c.charInfo.name == charName);
                 if (ociChar == null)
                 {
-                    UnityEngine.Debug.LogWarning($">> SceneRead: Character '{charName}' not found!");
+                    // UnityEngine.Debug.LogWarning($">> SceneRead: Character '{charName}' not found!");
                     continue;
                 }
 
+#if FEATURE_GROUND_COLLIDER
                 // ground collider
-                CreateGroundClothColliderOnLoad(ociChar.charInfo);
+                CreateGroundClothCollider(ociChar.charInfo);
+#endif                
 
                 // bone 노드 순회
                 foreach (XmlNode boneNode in charNode.SelectNodes("bone"))
@@ -281,7 +285,7 @@ namespace ClothPhysicsVisualizer
                     Transform bone = FindColliderByName(ociChar, colliderName);
                     if (bone == null)
                     {
-                        UnityEngine.Debug.LogWarning($">> SceneRead: collider '{colliderName}' not found in {charName}");
+                        // UnityEngine.Debug.LogWarning($">> SceneRead: collider '{colliderName}' not found in {charName}");
                         continue;
                     }
 
@@ -321,25 +325,45 @@ namespace ClothPhysicsVisualizer
             }
         }
 
-        private Transform FindColliderByName(OCIChar ociChar, string boneName)
+        private Transform FindColliderByName(OCIChar ociChar, string colliderName)
         {
             var capColliders = ociChar.charInfo.objBodyBone
                 .transform
-                .GetComponentsInChildren<CapsuleCollider>(true);
+                .GetComponentsInChildren<CapsuleCollider>();
 
-            if (capColliders.Length > 0)
-            {            
-                var cap = capColliders.FirstOrDefault(t => t.name == boneName);
-                if (cap != null)
-                    return cap.transform; // ✅ 찾으면 바로 리턴
+            foreach (CapsuleCollider capCollider in capColliders) {
+                if (capCollider != null) {
+                    string collider_name = "";
+                    int idx = capCollider.name.IndexOf('-');
+                    if (idx >= 0)
+                        collider_name = capCollider.name.Substring(0, idx);
+                    else
+                        collider_name = capCollider.name;
+
+                    if (colliderName == collider_name)
+                        return capCollider.transform;
+                }
             }
 
             var sphereColliders = ociChar.charInfo.objBodyBone
                 .transform
-                .GetComponentsInChildren<SphereCollider>(true);
+                .GetComponentsInChildren<SphereCollider>();            
 
-            var sphere = sphereColliders.FirstOrDefault(t => t.name == boneName);
-            return sphere != null ? sphere.transform : null;
+            foreach (SphereCollider sphereCollider in sphereColliders) {
+                if (sphereCollider != null) {
+                    string collider_name = "";
+                    int idx = sphereCollider.name.IndexOf('-');
+                    if (idx >= 0)
+                        collider_name = sphereCollider.name.Substring(0, idx);
+                    else
+                        collider_name = sphereCollider.name;
+
+                    if (colliderName == collider_name)
+                        return sphereCollider.transform;
+                }
+            }
+
+            return null;
         }
 
         // 유틸: 안전한 float 파싱
@@ -352,8 +376,6 @@ namespace ClothPhysicsVisualizer
 
         private void SceneWrite(string path, XmlTextWriter writer)
         {
-            UnityEngine.Debug.Log($">> visualizer SceneWrite");
-
             foreach (OCIChar ociChar in _ociCharMgmt.Keys)
             {
                 writer.WriteStartElement("character");
@@ -395,35 +417,40 @@ namespace ClothPhysicsVisualizer
                     }
                 }
 
-                UnityEngine.Debug.Log($">> visualizer targetCollider {targetCollider.Count}");
-
-                foreach (Transform bone in targetCollider)
+                string collider_name = "";
+                foreach (Transform collider in targetCollider)
                 {
+                    int idx = collider.name.IndexOf('-');
+                    if (idx >= 0)
+                        collider_name = collider.name.Substring(0, idx);
+                    else
+                        collider_name = collider.name;
+
                     writer.WriteStartElement("bone");
-                    writer.WriteAttributeString("name", bone.name);
+                    writer.WriteAttributeString("name", collider_name);
 
                     // position
                     writer.WriteStartElement("position");
-                    writer.WriteAttributeString("x", bone.localPosition.x.ToString());
-                    writer.WriteAttributeString("y", bone.localPosition.y.ToString());
-                    writer.WriteAttributeString("z", bone.localPosition.z.ToString());
+                    writer.WriteAttributeString("x", collider.localPosition.x.ToString());
+                    writer.WriteAttributeString("y", collider.localPosition.y.ToString());
+                    writer.WriteAttributeString("z", collider.localPosition.z.ToString());
                     writer.WriteEndElement();
 
                     // rotation
                     writer.WriteStartElement("rotation");
-                    writer.WriteAttributeString("x", bone.localEulerAngles.x.ToString());
-                    writer.WriteAttributeString("y", bone.localEulerAngles.y.ToString());
-                    writer.WriteAttributeString("z", bone.localEulerAngles.z.ToString());
+                    writer.WriteAttributeString("x", collider.localEulerAngles.x.ToString());
+                    writer.WriteAttributeString("y", collider.localEulerAngles.y.ToString());
+                    writer.WriteAttributeString("z", collider.localEulerAngles.z.ToString());
                     writer.WriteEndElement();
 
                     // scale
                     writer.WriteStartElement("scale");
-                    writer.WriteAttributeString("x", bone.localScale.x.ToString());
-                    writer.WriteAttributeString("y", bone.localScale.y.ToString());
-                    writer.WriteAttributeString("z", bone.localScale.z.ToString());
+                    writer.WriteAttributeString("x", collider.localScale.x.ToString());
+                    writer.WriteAttributeString("y", collider.localScale.y.ToString());
+                    writer.WriteAttributeString("z", collider.localScale.z.ToString());
                     writer.WriteEndElement();
 
-                    writer.WriteEndElement(); // bone
+                    writer.WriteEndElement(); // collider
                 }
 
                 writer.WriteEndElement(); // character
@@ -452,7 +479,7 @@ namespace ClothPhysicsVisualizer
         }
 
         // CapsuleCollider Wireframe 디버그
-        private static void CreateCapsuleWireframe(CapsuleCollider capsule, string name, List<GameObject> debugObjects, Dictionary<Collider, List<Renderer>> debugCollideRenderers)
+        private static void CreateCapsuleWireframe(CapsuleCollider capsule, Transform bone, string name, List<GameObject> debugObjects, Dictionary<Collider, List<Renderer>> debugCollideRenderers)
         {
             Camera cam = Camera.main;
 
@@ -484,7 +511,7 @@ namespace ClothPhysicsVisualizer
             lr.useWorldSpace = false;
             lr.material = new Material(Shader.Find("Unlit/Color"));
             lr.material.color = Color.green;
-            lr.widthMultiplier = 0.02f;
+            lr.widthMultiplier = 0.01f;
 
             List<Vector3> points = new List<Vector3>();
 
@@ -522,6 +549,7 @@ namespace ClothPhysicsVisualizer
             lr.SetPositions(points.ToArray());
 
             renderers.Add(lr); // LineRenderer 자체를 등록
+            debugObjects.Add(root);
             debugObjects.Add(lineObj);
 
             debugCollideRenderers[capsule] = renderers;
@@ -532,13 +560,13 @@ namespace ClothPhysicsVisualizer
         }
 
         // SphereCollider Wireframe 디버그
-        private static void CreateSphereWireframe(SphereCollider sphere, string name, List<GameObject> debugObjects, Dictionary<Collider, List<Renderer>> debugCollideRenderers)
+        private static void CreateSphereWireframe(SphereCollider sphere, Transform bone, string name, List<GameObject> debugObjects, Dictionary<Collider, List<Renderer>> debugCollideRenderers)
         {
             Camera cam = Camera.main;
 
             GameObject root = new GameObject(sphere.name + "_SphereWire");
             root.transform.SetParent(sphere.transform, false);
-            root.transform.localPosition = sphere.center;
+            // root.transform.localPosition = sphere.center;
             root.transform.localRotation = Quaternion.identity;
 
             List<Renderer> renderers = new List<Renderer>();
@@ -549,7 +577,7 @@ namespace ClothPhysicsVisualizer
             lr.useWorldSpace = false;
             lr.material = new Material(Shader.Find("Unlit/Color"));
             lr.material.color = Color.green;
-            lr.widthMultiplier = 0.02f;
+            lr.widthMultiplier = 0.01f;
 
             List<Vector3> points = new List<Vector3>();
             int segments = 64; // 원 근사 분할 수
@@ -580,6 +608,7 @@ namespace ClothPhysicsVisualizer
             lr.SetPositions(points.ToArray());
 
             renderers.Add(lr);
+            debugObjects.Add(root);
             debugObjects.Add(lineObj);
             debugCollideRenderers[sphere] = renderers;
 
@@ -667,11 +696,11 @@ namespace ClothPhysicsVisualizer
         private static OCICollider CreateOCICollider(OCIChar ociChar, Collider collider, Transform bone, string name, TreeNodeObject parentNode)
         {
             ChangeAmount changeAmount = new ChangeAmount(
-                bone.localPosition,
-                bone.localEulerAngles,
-                bone.localScale
+                    Vector3.zero,
+                    Vector3.zero,
+                    Vector3.one
             );
-
+            
             int idx = Studio.Studio.GetNewIndex();
             ColliderObjectInfo objectInfo = new ColliderObjectInfo(idx);
             objectInfo.changeAmount = changeAmount;
@@ -681,17 +710,17 @@ namespace ClothPhysicsVisualizer
             ociCollider.objectInfo = objectInfo;
             ociCollider.collider = collider;
 
-            GuideObject guideObject = Singleton<GuideObjectManager>.Instance.Add(collider.transform, idx);
+            GuideObject guideObject = Singleton<GuideObjectManager>.Instance.Add(bone.transform, idx);
 
             if (guideObject != null)
             {
                 guideObject.enablePos = true;
                 guideObject.enableScale = true;
-                guideObject.enableMaluti = true;
+                guideObject.enableMaluti = false;
                 guideObject.calcScale = true;
-                guideObject.scaleRate = 0.025f;
-                guideObject.scaleRot = 0.025f;
-                guideObject.scaleSelect = 0.025f;
+                guideObject.scaleRate = 0.0f;
+                guideObject.scaleRot = 0.0f;
+                guideObject.scaleSelect = 0.0f;
                 guideObject.SetVisibleCenter(true);
                 guideObject.isActive = false;
 
@@ -708,7 +737,7 @@ namespace ClothPhysicsVisualizer
                 ociCollider.treeNodeObject.enableChangeParent = false;
                 ociCollider.treeNodeObject.enableAddChild = false;
                 ociCollider.treeNodeObject.enableDelete = false;
-                ociCollider.treeNodeObject.enableCopy = false;
+                ociCollider.treeNodeObject.enableCopy = false;                
 
                 Studio.Studio.AddCtrlInfo(ociCollider);
              
@@ -730,9 +759,10 @@ namespace ClothPhysicsVisualizer
                 if (obj == null) continue;
                 GameObject.Destroy(obj);
             }
-
+#if FEATURE_GROUND_COLLIDER
             Transform groundTransform = value.ociChar.charInfo.objBodyBone.transform.FindLoop(GROUND_COLLIDER_NAME);
             if (groundTransform != null) { Destroy(groundTransform.gameObject); }
+#endif            
 
             value.debugCapsuleCollideVisibleObjects.Clear();
             value.debugSphereCollideVisibleObjects.Clear();           
@@ -741,13 +771,7 @@ namespace ClothPhysicsVisualizer
 
         private static void ClearPhysicCollier(PhysicCollider value)
         {
-            UnityEngine.Debug.Log($">> ClearPhysicCollier");
-            TreeNodeObject selectedTreeNodeObj = null;
-
-            if (Singleton<Studio.Studio>.Instance.treeNodeCtrl.selectNodes.Count() > 0)
-            {
-                selectedTreeNodeObj = Singleton<Studio.Studio>.Instance.treeNodeCtrl.selectNodes[0];
-            }
+            // UnityEngine.Debug.Log($">> ClearPhysicCollier start");
 
             foreach (var obj in value.debugCapsuleCollideVisibleObjects)
             {
@@ -762,11 +786,11 @@ namespace ClothPhysicsVisualizer
 
             value.debugCapsuleCollideVisibleObjects.Clear();
             value.debugSphereCollideVisibleObjects.Clear();
-
+#if FEATURE_GROUND_COLLIDER
             Transform groundTransform = value.ociChar.charInfo.objBodyBone.transform.FindLoop(GROUND_COLLIDER_NAME);
 
             if (groundTransform != null) { Destroy(groundTransform.gameObject); }
-
+#endif
 
             if (value.ociCFolder != null)
             {
@@ -778,6 +802,7 @@ namespace ClothPhysicsVisualizer
                     if (obj == null) continue;
 
                     obj.enableDelete = true;
+                    Singleton<Studio.Studio>.Instance.treeNodeCtrl.DeleteNode(obj);
                 }
 
                 foreach (var obj in value.ociSFolderChild.Keys)
@@ -785,40 +810,25 @@ namespace ClothPhysicsVisualizer
                     if (obj == null) continue;
 
                     obj.enableDelete = true;
+                    Singleton<Studio.Studio>.Instance.treeNodeCtrl.DeleteNode(obj);
                 }
-                Singleton<Studio.Studio>.Instance.treeNodeCtrl.DeleteNodeLoop(value.ociSFolder.treeNodeObject);
-                Singleton<Studio.Studio>.Instance.treeNodeCtrl.DeleteNodeLoop(value.ociCFolder.treeNodeObject);
+
+                Singleton<Studio.Studio>.Instance.treeNodeCtrl.DeleteNode(value.ociSFolder.treeNodeObject);
+                Singleton<Studio.Studio>.Instance.treeNodeCtrl.DeleteNode(value.ociCFolder.treeNodeObject);
             }
 
             value.ociCFolderChild.Clear();
             value.ociSFolderChild.Clear();
             value.debugCollideRenderers.Clear();
-            _self._ociCharMgmt.Remove(value.ociChar);
 
-            if (value.ociCFolder != null && selectedTreeNodeObj != null)
-            {
-                Singleton<Studio.Studio>.Instance.treeNodeCtrl.SelectSingle(selectedTreeNodeObj);
-            }
+            value.ociCFolder = null;
+            value.ociSFolder = null;
+
+            // UnityEngine.Debug.Log($">> ClearPhysicCollier end");
         }
 
-        private static List<CapsuleCollider> GetChildCapsuleColliders(Transform bone)
-        {
-            var result = new List<CapsuleCollider>();
-            if (bone == null) return result;
-
-            foreach (Transform child in bone)
-            {
-                var colliders = child.GetComponents<CapsuleCollider>();
-                if (colliders != null && colliders.Length > 0)
-                {
-                    result.AddRange(colliders);
-                }
-            }
-
-            return result;
-        }
-
-        private static CapsuleCollider AddCapsuleFlatCollider(GameObject colliderObject, Transform bone)
+#if FEATURE_GROUND_COLLIDER
+        private static CapsuleCollider AddCapsuleGroundCollider(GameObject colliderObject, Transform bone)
         {
             colliderObject.transform.SetParent(bone, false);
 
@@ -831,84 +841,57 @@ namespace ClothPhysicsVisualizer
             return capsule;
         }
 
-        private static void CreateGroundClothColliderOnLoad(ChaControl baseCharControl)
+        private static void CreateGroundClothCollider(ChaControl baseCharControl)
         {
-            List<Cloth> clothes = baseCharControl.transform.GetComponentsInChildren<Cloth>(true).ToList();
- 
-            if (clothes.Count > 0)
-            {
-                Transform root_bone = baseCharControl.objBodyBone.transform.FindLoop("cf_J_Root");
-                CapsuleCollider flatCollider = null;
-
-                GameObject flatGroundClothColliderObj = new GameObject(GROUND_COLLIDER_NAME);
-                flatCollider = AddCapsuleFlatCollider(flatGroundClothColliderObj, root_bone);
-
-                foreach (Cloth cloth in clothes)
-                {
-                    // 새 capsuleCollider 추가
-                    cloth.capsuleColliders = new CapsuleCollider[] { flatCollider }.ToArray();
-                }
-            }           
-        }
-        private static CapsuleCollider CreateGroundClothCollider(PhysicCollider physicCollider, ChaControl baseCharConctrol)
-        {
-            CapsuleCollider flatCollider = null;
-            Transform groundTransform = baseCharConctrol.objBodyBone.transform.FindLoop(GROUND_COLLIDER_NAME);        
-
+            CapsuleCollider groundCollider = null;
+            Transform groundTransform = baseCharControl.objBodyBone.transform.FindLoop(GROUND_COLLIDER_NAME);
+            Transform root_bone = baseCharControl.objBodyBone.transform.FindLoop("cf_J_Root");
             // ground collider
             if (groundTransform == null)
             {
-                Transform root_bone = baseCharConctrol.objBodyBone.transform.FindLoop("cf_J_Root");
-
                 GameObject groundObj = new GameObject(GROUND_COLLIDER_NAME);
-                flatCollider = AddCapsuleFlatCollider(groundObj, root_bone);
+                groundCollider = AddCapsuleGroundCollider(groundObj, root_bone);
             }
             else
             {
-                flatCollider = groundTransform.GetComponent<CapsuleCollider>();
-            }
-            return flatCollider;   
-        }
+                groundCollider = groundTransform.GetComponent<CapsuleCollider>();
 
-        private static void UpdateGroundColliders(CapsuleCollider groundCollider, List<Cloth> clothes)
-        {
-            UnityEngine.Debug.Log($">> UpdateGroundColliders {groundCollider},{clothes.Count}");
-
-            if (groundCollider != null)
-            {
-                foreach (Cloth cloth in clothes)
+                if (groundCollider == null)
                 {
-                    // 새 capsuleCollider 교체
-                    cloth.capsuleColliders = new CapsuleCollider[] { groundCollider }.ToArray();
+                    groundCollider = AddCapsuleGroundCollider(groundTransform.gameObject, root_bone);
                 }
             }
-        }
 
+            List<Cloth> clothes = baseCharControl.transform.GetComponentsInChildren<Cloth>(true).ToList();
+
+            foreach (Cloth cloth in clothes)
+            {
+                // 새 capsuleCollider 교체
+                cloth.capsuleColliders = new CapsuleCollider[] { groundCollider }.ToArray();
+            }
+        }
+#endif
         private static void AddVisualColliders(OCIChar ociChar, Update_Mode type)
         {
             if (ociChar != null && ClothColliderVisual.Value == true)
             {
-                UnityEngine.Debug.Log($">> AddVisualColliders");
+                // UnityEngine.Debug.Log($">> AddVisualColliders");
 
                 PhysicCollider physicCollider = null;
 
-                if (type == Update_Mode.CHAR_CHANGE)
-                {
-                    if (_self._ociCharMgmt.TryGetValue(ociChar, out physicCollider))
-                    {
-                        UnityEngine.Debug.Log($">> reused cache");
-                        return;
-                    }
-                }
-
-                UnityEngine.Debug.Log($">> register cache");
-
                 if (_self._ociCharMgmt.TryGetValue(ociChar, out physicCollider))
                 {
+                    if (type == Update_Mode.SELECTION)
+                        return;
+
                     ClearPhysicCollier(physicCollider);
+                    _self._ociCharMgmt.Remove(ociChar);
+                }
+                else
+                {
+                    physicCollider = new PhysicCollider();
                 }
 
-                physicCollider = new PhysicCollider();
                 physicCollider.ociChar = ociChar;
                 _self._selectedOCI = ociChar;
 
@@ -950,79 +933,67 @@ namespace ClothPhysicsVisualizer
                     physicCollider.ociSFolder.treeNodeObject.enableAddChild = true;
                 }
 
-
+#if FEATURE_GROUND_COLLIDER
                 List<Cloth> clothes = baseCharControl.transform.GetComponentsInChildren<Cloth>(true).ToList();
                 if (clothes.Count > 0)
                 {
-                    CapsuleCollider groundCollider = CreateGroundClothCollider(physicCollider, baseCharControl);
-                    UpdateGroundColliders(groundCollider, clothes);
+                    CreateGroundClothCollider(baseCharControl);
                 }
-
+#endif
+                
                 {
                     // sphere collider
-                    if (baseCharControl.objBodyBone != null && physicCollider.ociSFolder != null)
+                    if (physicCollider.ociSFolder != null && ociChar.charInfo.objBodyBone)
                     {
-
-                        List<SphereCollider> scolliders = baseCharControl.objBodyBone
-                            .transform
-                            .GetComponentsInChildren<SphereCollider>()
-                            .OrderBy(col => col.gameObject.name) // 이름 기준 정렬
-                            .ToList();
-
-
-                        foreach (var col in scolliders)
+                        List<SphereCollider> spherecolliders = ociChar.charInfo.objBodyBone.transform.GetComponentsInChildren<SphereCollider>().OrderBy(col => col.gameObject.name).ToList();
+                        List<CapsuleCollider> capsulecolliders = ociChar.charInfo.objBodyBone.transform.GetComponentsInChildren<CapsuleCollider>().OrderBy(col => col.gameObject.name).ToList();
+        
+                        foreach (var col in spherecolliders.OrderBy(col => col.gameObject.name).ToList())
                         {
                             if (col == null) continue; // Destroy 된 경우 스킵
 
                             if (col.gameObject.name.Contains("Cloth colliders"))
                             {
                                 string trim_name = col.gameObject.name.Replace("Cloth colliders support_", "").Trim();
-                                string bone_name;
+                                string collider_name;
 
                                 idx = trim_name.IndexOf('-');
                                 if (idx >= 0)
-                                    bone_name = trim_name.Substring(0, idx);
+                                    collider_name = trim_name.Substring(0, idx);
                                 else
-                                    bone_name = trim_name;
+                                    collider_name = trim_name;
 
-                                OCICollider ociCollider = CreateOCICollider(ociChar, col, col.gameObject.transform, bone_name, physicCollider.ociSFolder.treeNodeObject);
+                                OCICollider ociCollider = CreateOCICollider(ociChar, col, col.gameObject.transform, collider_name, physicCollider.ociSFolder.treeNodeObject);
 
                                 if (ociCollider != null)
                                 {
-                                    physicCollider.ociSFolderChild.Add(ociCollider.treeNodeObject, col);
-                                    CreateSphereWireframe(col, bone_name, physicCollider.debugSphereCollideVisibleObjects, physicCollider.debugCollideRenderers);
+
+                                   physicCollider.ociSFolderChild.Add(ociCollider.treeNodeObject, col);
+                                   CreateSphereWireframe(col,  col.gameObject.transform, collider_name, physicCollider.debugSphereCollideVisibleObjects, physicCollider.debugCollideRenderers);
                                 }
                             }
                         }
 
-                        // capsule collider
-                        List<CapsuleCollider> ccolliders = baseCharControl.objBodyBone
-                            .transform
-                            .GetComponentsInChildren<CapsuleCollider>(true)
-                            .OrderBy(col => col.gameObject.name) // 이름 기준 정렬
-                            .ToList();
-
-                        foreach (var col in ccolliders)
+                        foreach (var col in capsulecolliders.OrderBy(col => col.gameObject.name).ToList())
                         {
-
                             if (col == null) continue; // Destroy 된 경우 스킵
 
                             if (col.gameObject.name.Contains("Cloth colliders"))
                             {
                                 string trim_name = col.gameObject.name.Replace("Cloth colliders support_", "").Trim();
-                                string bone_name;
+                                string collider_name;
                                 idx = trim_name.IndexOf('-');
                                 if (idx >= 0)
-                                    bone_name = trim_name.Substring(0, idx);
+                                    collider_name = trim_name.Substring(0, idx);
                                 else
-                                    bone_name = trim_name;
+                                    collider_name = trim_name;
 
-                                OCICollider ociCollider = CreateOCICollider(ociChar, col, col.gameObject.transform, bone_name, physicCollider.ociCFolder.treeNodeObject);
+                                OCICollider ociCollider = CreateOCICollider(ociChar, col, col.gameObject.transform, collider_name, physicCollider.ociCFolder.treeNodeObject);
 
                                 if (ociCollider != null)
                                 {
-                                    physicCollider.ociCFolderChild.Add(ociCollider.treeNodeObject, col);
-                                    CreateCapsuleWireframe(col, bone_name, physicCollider.debugCapsuleCollideVisibleObjects, physicCollider.debugCollideRenderers);
+                                   physicCollider.ociCFolderChild.Add(ociCollider.treeNodeObject, col);
+                                   CreateCapsuleWireframe(col,  col.gameObject.transform, collider_name, physicCollider.debugCapsuleCollideVisibleObjects, physicCollider.debugCollideRenderers);
                                 }
                             }
                         }
@@ -1035,7 +1006,16 @@ namespace ClothPhysicsVisualizer
                         physicCollider.ociSFolder.treeNodeObject.enableAddChild = false;
                     }
 
-                    _self._ociCharMgmt.Add(ociChar, physicCollider);
+                    if (_self._ociCharMgmt.TryGetValue(ociChar, out PhysicCollider currentValue))
+                    {
+                        _self._ociCharMgmt[ociChar] = currentValue;
+                    }
+                    else
+                    {
+                         _self._ociCharMgmt.Add(ociChar, physicCollider);
+                    }
+
+                    // UnityEngine.Debug.Log($">> renew ociChar collider {_self._ociCharMgmt.Count}");
 
                     // parent 구성 후 UI 업데이트                 
                     Singleton<Studio.Studio>.Instance.treeNodeCtrl.RefreshHierachy();
@@ -1084,11 +1064,12 @@ namespace ClothPhysicsVisualizer
         {
             private static bool Prefix(object __instance, TreeNodeObject _node)
             {
+                //  UnityEngine.Debug.Log($">> OnSelectSingle");
                 OCIChar ociChar = Studio.Studio.GetCtrlInfo(_node) as OCIChar;
 
                 if (ociChar != null)
                 {
-                    ociChar.GetChaControl().StartCoroutine(ExecuteAfterFrame(ociChar, Update_Mode.CHAR_CHANGE));
+                    ociChar.GetChaControl().StartCoroutine(ExecuteAfterFrame(ociChar, Update_Mode.SELECTION));
                 }
 
                 OCICollider ociCollider = Studio.Studio.GetCtrlInfo(_node) as OCICollider;
@@ -1140,7 +1121,7 @@ namespace ClothPhysicsVisualizer
 
                 if (chaControl != null)
                 {                    
-                    chaControl.StartCoroutine(ExecuteAfterFrame(__instance as OCIChar, Update_Mode.CHAR_CHANGE));
+                    chaControl.StartCoroutine(ExecuteAfterFrame(__instance as OCIChar, Update_Mode.CHANGE));
                 }
             }
         }
@@ -1151,7 +1132,7 @@ namespace ClothPhysicsVisualizer
         {
             private static void Postfix(ChaControl __instance, int kind, int id, bool forceChange)
             {
-                UnityEngine.Debug.Log($">> ChangeClothes");
+                // UnityEngine.Debug.Log($">> ChangeClothes");
                 bool shouldReallocation = true;
                 PhysicCollider physicCollider = null;
                 if (_self._ociCharMgmt.TryGetValue(__instance.GetOCIChar(), out physicCollider))
@@ -1170,18 +1151,13 @@ namespace ClothPhysicsVisualizer
                     }
 
                     if (shouldReallocation)
-                        __instance.StartCoroutine(ExecuteAfterFrame(__instance.GetOCIChar(), Update_Mode.DRESS_CHANGE));
+                        __instance.StartCoroutine(ExecuteAfterFrame(__instance.GetOCIChar(), Update_Mode.CHANGE));
                     else
                     {
                         // 옷 부분 변경 시 물리 옷이 없는 옷의 경우에도 ground collider 대상으로 상태 update 는 해줘야 함
-
-                        CapsuleCollider capsuleCollider = CreateGroundClothCollider(physicCollider, __instance.GetOCIChar().charInfo);
-                        UnityEngine.Debug.Log($">> capsuleCollider {capsuleCollider}");                                 
-           
-                        if (capsuleCollider != null)
-                        {                        
-                            UpdateGroundColliders(capsuleCollider, __instance.GetOCIChar().charInfo.transform.GetComponentsInChildren<Cloth>(true).ToList());
-                        }                        
+#if FEATURE_GROUND_COLLIDER
+                        CreateGroundClothCollider(__instance.GetOCIChar().charInfo);
+#endif                        
                     }
                 }                    
             }
@@ -1195,7 +1171,8 @@ namespace ClothPhysicsVisualizer
             {
                 if (__instance != null)
                 {
-                    __instance.StartCoroutine(ExecuteAfterFrame(__instance.GetOCIChar(), Update_Mode.DRESS_CHANGE));  
+                    // UnityEngine.Debug.Log($">> SetAccessoryStateAll");
+                    __instance.StartCoroutine(ExecuteAfterFrame(__instance.GetOCIChar(), Update_Mode.CHANGE));  
                 }
             }
         }
@@ -1207,6 +1184,31 @@ namespace ClothPhysicsVisualizer
             {
                 _self.SceneInit();
                 return true;
+            }
+        }
+
+        [HarmonyPatch(typeof(TreeNodeObject), "SetVisibleLoop", new[] { typeof(TreeNodeObject), typeof(bool) })]
+        private static class TreeNodeObject_SetVisibleLoop_Patches
+        {
+            public static bool Prefix(TreeNodeObject __instance, TreeNodeObject _source, bool _visible)
+            {
+                if (_source != null)
+                {
+                    if (_source.gameObject.activeSelf != _visible)
+                    {
+                        _source.gameObject.SetActive(_visible);
+                    }
+                    if (_visible && _source.treeState == TreeNodeObject.TreeState.Close)
+                    {
+                        _visible = false;
+                    }
+                    foreach (TreeNodeObject source in _source.child)
+                    {
+                        __instance.SetVisibleLoop(source, _visible);
+                    }
+                }
+                
+                return false;
             }
         }
 
@@ -1297,8 +1299,6 @@ namespace ClothPhysicsVisualizer
     {
         public OCIChar ociChar;
         public ClothInfo[] clothInfos;
-
-        public SkinnedMeshRenderer selectedOciSmr;
 
         public List<GameObject> debugCapsuleCollideVisibleObjects = new List<GameObject>();
 

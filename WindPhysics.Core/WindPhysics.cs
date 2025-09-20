@@ -26,6 +26,7 @@ using ExtensibleSaveFormat;
 using AIChara;
 using System.Security.Cryptography;
 using KKAPI.Studio;
+using IllusionUtility.GetUtility;
 #endif
 
 // 추가 작업 예정
@@ -47,7 +48,7 @@ namespace WindPhysics
     {
         #region Constants
         public const string Name = "WindPhysics";
-        public const string Version = "0.9.4";
+        public const string Version = "0.9.3.1";
         public const string GUID = "com.alton.illusionplugins.wind";
         internal const string _ownerId = "alton";
 #if KOIKATSU || AISHOUJO || HONEYSELECT2
@@ -474,16 +475,13 @@ namespace WindPhysics
             if (objectCtrlInfo != null)
             {
                 _self._selectedOCI = objectCtrlInfo;
-                List<DynamicBone> dynamicBones = new List<DynamicBone>();
-                DynamicBone[] bones = _self._selectedOCI.guideObject.transformTarget.GetComponentsInChildren<DynamicBone>(true);
+                OCIChar ociChar = _self._selectedOCI as OCIChar;
+                ChaControl baseCharControl = ociChar.charInfo;
 
+               // Head
+                DynamicBone[] bones =  baseCharControl.objBodyBone.transform.FindLoop("cf_J_Head").GetComponentsInChildren<DynamicBone>(true);
                 foreach (var bone in bones)
                 {
-                    if (bone == null || bone.m_Root == null)
-                        continue;
-
-                    if (!bone.gameObject.name.Contains("Belly") && !bone.gameObject.name.Contains("Vagina") && !bone.gameObject.name.Contains("Ana") && !bone.gameObject.name.Contains("Leg"))
-                    {
 #if FEATURE_AUTO_HAIR_GRAVITY
                         if (ConfigKeyHairDown.Value == true) {
                             if (bone.m_Gravity.y == 0f)
@@ -501,30 +499,19 @@ namespace WindPhysics
                             }
                         }
 #endif
-                        dynamicBones.Add(bone);
-                    }
                 }
-                _self._dynamicBones = dynamicBones;
+                _self._dynamicBones = bones.ToList();
 
                 if (_self._dynamicBones.Count > 0)
                 {
                     if (ConfigKeyEnableWind.Value)
                         _self._status = Status.RUN;
                 }
+                
+                // body
+                Cloth[] clothes = baseCharControl.transform.GetComponentsInChildren<Cloth>(true);
 
-
-                Cloth[] cloths = _self._selectedOCI.guideObject.transformTarget.GetComponentsInChildren<Cloth>(true);
-                List<Cloth> clothes = new List<Cloth>();
-
-                foreach (var cloth in cloths)
-                {
-                    if (cloth == null || cloth.transform == null)
-                        continue;
-
-                    clothes.Add(cloth);
-                }
-
-                _self._clothes = clothes;
+                _self._clothes = clothes.ToList();
 
                 _self._cloth_status = Cloth_Status.IDLE;
                 if (_self._clothes.Count > 0)
@@ -542,8 +529,6 @@ namespace WindPhysics
 
             private static bool Prefix(object __instance, TreeNodeObject _node)
             {
-                //UnityEngine.Debug.Log($">> _OnSelectSingle ");
-
                 ObjectCtrlInfo objectCtrlInfo = Studio.Studio.GetCtrlInfo(_node);
 
                 OCIChar ociChar = objectCtrlInfo as OCIChar;
@@ -592,7 +577,6 @@ namespace WindPhysics
         {
             public static void Postfix(OCIChar __instance, string _path)
             {
-                // UnityEngine.Debug.Log($">> ChangeChara");
                 ChaControl chaControl = __instance.GetChaControl();
 
                 if (chaControl != null)

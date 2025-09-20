@@ -1402,8 +1402,8 @@ namespace Timeline
             _tooltip.transform.parent.gameObject.SetActive(false);
 #if FEATURE_KEYFRAME_POOL
             StartCoroutine(CreateKeyFrameDisplaysCoroutine(
-                countPerFrame: 100,     // 1프레임당 최대 1000개 처리
-                totalCount: 500       // 총 생성할 KeyframeDisplay 수
+                countPerFrame: 100,     // 1프레임당 최대 100개 처리
+                totalCount: 200       // 총 생성할 KeyframeDisplay 수
             ));            
 #endif
             InvokeRepeating(nameof(DelayUpdate), 0f, 1f); // 1초마다 주기적 호출
@@ -3012,7 +3012,12 @@ namespace Timeline
                                 display = _displayedKeyframes[keyframeIndex];
                             else
                             {
+#if FEATURE_KEYFRAME_POOL
                                 display = GetFromKeyframeDisplayPool();
+#else
+                                display = CreateKeyFrameDisplay();
+#endif
+
                                 display.gameObject.transform.SetParent(_keyframesContainer);
                                 display.gameObject.transform.localPosition = Vector3.zero;
                                 display.gameObject.transform.localScale = Vector3.one;   
@@ -3042,7 +3047,7 @@ namespace Timeline
             }
         }
         
-#if FEATURE_KEYFRAME_POOL
+
         private KeyframeDisplay CreateKeyFrameDisplay() {
 
                 KeyframeDisplay display = new KeyframeDisplay();
@@ -3207,7 +3212,7 @@ namespace Timeline
 
             return display;
     }
-#endif
+
         private void UpdateGridMaterial()
         {
             _gridImage.material.SetFloat("_TilingX", _duration / 10f);
@@ -3848,7 +3853,7 @@ namespace Timeline
             if (ConfigKeyEnableUndoRedo.Value) {
 #if FEATURE_UNDO_DEBUG
                 Logger.LogMessage("UndoPushAction");
-#endif                
+#endif
                 if (_undoStack.Count > 0) {
                     TransactionData transactionData = _undoStack.Peek();
                     if (transactionData.ctrlInfo != _selectedOCI) {
@@ -3922,9 +3927,9 @@ namespace Timeline
                         // Console.WriteLine("exception " + ex.Message);
                     }
 
-#if FEATURE_UNDO_DEBUG 
+#if FEATURE_UNDO_DEBUG
                     Logger.LogMessage("UndoPopupAction");
-#endif                    
+#endif
                     UpdateKeyframeWindow(false);
                     UpdateInterpolablesView();
                 } 
@@ -4215,8 +4220,6 @@ namespace Timeline
                 display.filePath = files[i];
                 display.pointerDownHandler.onPointerDown = (e) =>
                 {
-                    UnityEngine.Debug.Log($">> onPointerDown {display.filePath}");
-
                     if (file_format == "*.wav")
                     {
                         bool isDirectory = (File.GetAttributes(display.filePath) & FileAttributes.Directory) == FileAttributes.Directory;
@@ -4436,7 +4439,7 @@ namespace Timeline
 
 #endif
 
-        #endregion
+#endregion
 
         #region Keyframe Window
         private void OpenKeyframeWindow()
@@ -5278,7 +5281,7 @@ namespace Timeline
 
         #endregion
 
-        #endregion
+#endregion
 
         #region Saves
 
@@ -5310,7 +5313,6 @@ namespace Timeline
             DeleteTemporaryCache();
             _instantActionInterpolables.Clear();
 #endif
-
 
             UpdateGrid();
         }

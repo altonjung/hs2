@@ -1,0 +1,4 @@
+D:\work\hs2\working\hs2plugin\RealHumanSupport.HS2\obj\Release\RealHumanSupport.HS2.csproj.AssemblyReference.cache
+D:\work\hs2\working\hs2plugin\RealHumanSupport.HS2\obj\Release\RealHumanSupport.HS2.csproj.CoreCompileInputs.cache
+D:\work\hs2\working\hs2plugin\bin\HS2\RealHumanSupport.dll
+D:\work\hs2\working\hs2plugin\RealHumanSupport.HS2\obj\Release\RealHumanSupport.dll
