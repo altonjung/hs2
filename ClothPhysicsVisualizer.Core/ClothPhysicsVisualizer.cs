@@ -54,7 +54,7 @@ namespace ClothPhysicsVisualizer
     {
         #region Constants
         public const string Name = "ClothPhysicsVisualizerVisualizer";
-        public const string Version = "0.9.0";
+        public const string Version = "0.9.0.2";
         public const string GUID = "com.alton.illusionplugins.ClothPhysicsVisualizer";
         internal const string _ownerId = "alton";
 #if KOIKATSU || AISHOUJO || HONEYSELECT2
@@ -473,10 +473,10 @@ namespace ClothPhysicsVisualizer
 
         #region Patches
 
-        private static Transform GetPelvisBone(SkinnedMeshRenderer smr)
-        {
-            return smr.rootBone;
-        }
+        // private static Transform GetPelvisBone(SkinnedMeshRenderer smr)
+        // {
+        //     return smr.rootBone;
+        // }
 
         // CapsuleCollider Wireframe 디버그
         private static void CreateCapsuleWireframe(CapsuleCollider capsule, Transform bone, string name, List<GameObject> debugObjects, Dictionary<Collider, List<Renderer>> debugCollideRenderers)
@@ -893,7 +893,6 @@ namespace ClothPhysicsVisualizer
                 }
 
                 physicCollider.ociChar = ociChar;
-                _self._selectedOCI = ociChar;
 
                 ChaControl baseCharControl = ociChar.charInfo;
 
@@ -918,6 +917,30 @@ namespace ClothPhysicsVisualizer
                     else
                     {
                         physicCollider.clothInfos[idx].hasCloth = false;
+                    }
+
+                    idx++;
+                }
+
+                idx = 0;
+                foreach (var accessory in baseCharControl.objAccessory)
+                {
+                    if (accessory == null)
+                    {
+                        idx++;
+                        continue;
+                    }
+
+                    physicCollider.accessoryInfos[idx].clothObj = accessory;
+
+                    if (accessory.GetComponentsInChildren<Cloth>().Length > 0)
+                    {
+                        physicCollider.accessoryInfos[idx].hasCloth = true;
+                        physicsClothes.Add(accessory);
+                    }
+                    else
+                    {
+                        physicCollider.accessoryInfos[idx].hasCloth = false;
                     }
 
                     idx++;
@@ -1064,8 +1087,10 @@ namespace ClothPhysicsVisualizer
         {
             private static bool Prefix(object __instance, TreeNodeObject _node)
             {
-                //  UnityEngine.Debug.Log($">> OnSelectSingle");
-                OCIChar ociChar = Studio.Studio.GetCtrlInfo(_node) as OCIChar;
+                //  UnityEngine.Debug.Log($">> OnSelectSingle");               
+                ObjectCtrlInfo objectCtrlInfo = Studio.Studio.GetCtrlInfo(_node);         
+                _self._selectedOCI = objectCtrlInfo;
+                OCIChar ociChar = objectCtrlInfo as OCIChar;
 
                 if (ociChar != null)
                 {
@@ -1103,9 +1128,7 @@ namespace ClothPhysicsVisualizer
         {
             private static bool Prefix(object __instance, TreeNodeObject _node)
             {
-
-                OCIChar ociChar = Studio.Studio.GetCtrlInfo(_node) as OCIChar;
-                DeselectNode(ociChar);
+                DeselectNode(_self._selectedOCI as OCIChar);
 
                 return true;
             }
@@ -1126,6 +1149,42 @@ namespace ClothPhysicsVisualizer
             }
         }
 
+        // 악세러리 부분 변경
+        [HarmonyPatch(typeof(ChaControl), "ChangeAccessory", typeof(int), typeof(int), typeof(int), typeof(string), typeof(bool))]
+        private static class ChaControl_ChangeAccessory_Patches
+        {
+            private static void Postfix(ChaControl __instance, int slotNo, int type, int id, string parentKey, bool forceChange)
+            {                 
+                bool shouldReallocation = true;
+                PhysicCollider physicCollider = null;
+                if (_self._ociCharMgmt.TryGetValue(__instance.GetOCIChar(), out physicCollider))
+                {
+                    if (physicCollider.accessoryInfos[slotNo] != null)
+                    {                    
+                        GameObject newClothObj = __instance.objAccessory[slotNo];
+
+                        if (newClothObj != null)
+                        {
+                            if (physicCollider.accessoryInfos[slotNo].hasCloth == false && newClothObj.GetComponentsInChildren<Cloth>().Length == 0 && newClothObj.GetComponentsInChildren<DynamicBone>().Length == 0)
+                            {
+                                shouldReallocation = false;
+                            }
+                        }                                        
+                    }
+
+                    if (shouldReallocation)
+                        __instance.StartCoroutine(ExecuteAfterFrame(__instance.GetOCIChar(), Update_Mode.CHANGE));
+                    else
+                    {
+                        // 옷 부분 변경 시 물리 옷이 없는 옷의 경우에도 ground collider 대상으로 상태 update 는 해줘야 함
+#if FEATURE_GROUND_COLLIDER
+                        CreateGroundClothCollider(__instance.GetOCIChar().charInfo);
+#endif                        
+                    }
+                }                 
+            } 
+        }
+        
         // 옷 부분 변경
         [HarmonyPatch(typeof(ChaControl), "ChangeClothes", typeof(int), typeof(int), typeof(bool))]
         private static class ChaControl_ChangeClothes_Patches
@@ -1300,6 +1359,8 @@ namespace ClothPhysicsVisualizer
         public OCIChar ociChar;
         public ClothInfo[] clothInfos;
 
+       public ClothInfo[] accessoryInfos;
+
         public List<GameObject> debugCapsuleCollideVisibleObjects = new List<GameObject>();
 
         public List<GameObject> debugSphereCollideVisibleObjects = new List<GameObject>();
@@ -1320,6 +1381,12 @@ namespace ClothPhysicsVisualizer
             {
                 clothInfos[i] = new ClothInfo();
             }
+
+            accessoryInfos = new ClothInfo[20];
+            for (int i = 0; i < accessoryInfos.Length; i++)
+            {
+                accessoryInfos[i] = new ClothInfo();
+            }            
         }        
     }
 
