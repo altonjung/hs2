@@ -157,7 +157,7 @@ namespace RealHumanSupport
 
             BodyBumpActive = Config.Bind("Option", "Real body effect active", true, new ConfigDescription("Enable/Disable"));
 
-            BreathInterval = Config.Bind("Breath", "Cycle", 1.5f, new ConfigDescription("Breath Interval", new AcceptableValueRange<float>(1.0f,  3.0f)));;
+            BreathInterval = Config.Bind("Breath", "Cycle", 1.5f, new ConfigDescription("Breath Interval", new AcceptableValueRange<float>(1.0f,  2.0f)));;
 
             BreathAmplitude = Config.Bind("Breath", "Amplitude", 0.5f, new ConfigDescription("Breath Amplitude", new AcceptableValueRange<float>(0.1f, 1.0f)));
 
@@ -237,51 +237,49 @@ namespace RealHumanSupport
             // UnityEngine.Debug.Log($">> _mergeComputeShader {_mergeComputeShader}");
    
             _faceMouthMgmt.Add(0, new RealFaceData());
-            _faceMouthMgmt.Add(1, new RealFaceData(InitBArea(512, 610, 120, 80, 0.4f)));
-            _faceMouthMgmt.Add(2, new RealFaceData(InitBArea(512, 610, 140, 90, 0.4f)));
+            _faceMouthMgmt.Add(1, new RealFaceData(InitBArea(512, 610, 120, 80, 0.6f)));
+            _faceMouthMgmt.Add(2, new RealFaceData(InitBArea(512, 610, 140, 90, 0.6f)));
             _faceMouthMgmt.Add(3, new RealFaceData());
-            _faceMouthMgmt.Add(4, new RealFaceData(InitBArea(512, 690, 60, 50, 0.4f)));
-            _faceMouthMgmt.Add(5, new RealFaceData(InitBArea(512, 690, 60, 50, 0.4f)));
-            _faceMouthMgmt.Add(6, new RealFaceData(InitBArea(512, 690, 60, 50, 0.4f)));
+            _faceMouthMgmt.Add(4, new RealFaceData(InitBArea(512, 690, 60, 50, 0.6f)));
+            _faceMouthMgmt.Add(5, new RealFaceData(InitBArea(512, 690, 60, 50, 0.6f)));
+            _faceMouthMgmt.Add(6, new RealFaceData(InitBArea(512, 690, 60, 50, 0.6f)));
             _faceMouthMgmt.Add(7, new RealFaceData(InitBArea(470, 590, 60, 40)));
             _faceMouthMgmt.Add(8, new RealFaceData(InitBArea(570, 590, 60, 40)));
             _faceMouthMgmt.Add(9, new RealFaceData(InitBArea(512, 590, 100, 60)));
-            _faceMouthMgmt.Add(10, new RealFaceData(InitBArea(520, 630, 40, 40), InitBArea(320, 660, 80, 120, 1f), InitBArea(690, 660, 80, 120, 1f)));
-            _faceMouthMgmt.Add(11, new RealFaceData(InitBArea(520, 630, 40, 40), InitBArea(320, 660, 80, 120, 1f), InitBArea(690, 660, 80, 120, 1f)));
+            _faceMouthMgmt.Add(10, new RealFaceData(InitBArea(520, 630, 40, 40), InitBArea(320, 660, 80, 120), InitBArea(690, 660, 80, 120)));
+            _faceMouthMgmt.Add(11, new RealFaceData(InitBArea(520, 630, 40, 40), InitBArea(320, 660, 80, 120), InitBArea(690, 660, 80, 120)));
             _faceMouthMgmt.Add(12, new RealFaceData(InitBArea(512, 690, 90, 60, 0.5f)));
-            _faceMouthMgmt.Add(13, new RealFaceData(InitBArea(320, 660, 80, 120, 1.5f), InitBArea(690, 660, 80, 120, 1.5f)));
+            _faceMouthMgmt.Add(13, new RealFaceData(InitBArea(320, 660, 80, 120), InitBArea(690, 660, 80, 120)));
             _faceMouthMgmt.Add(14, new RealFaceData());
-            _faceMouthMgmt.Add(15, new RealFaceData(InitBArea(512, 690, 90, 60, 0.4f)));
-            _faceMouthMgmt.Add(16, new RealFaceData(InitBArea(512, 690, 90, 60, 0.4f)));
-            _faceMouthMgmt.Add(17, new RealFaceData(InitBArea(320, 660, 80, 120, 2f), InitBArea(690, 660, 80, 120, 2f)));
-            _faceMouthMgmt.Add(18, new RealFaceData(InitBArea(320, 660, 80, 120, 2f), InitBArea(690, 660, 80, 120, 2f)));
+            _faceMouthMgmt.Add(15, new RealFaceData(InitBArea(512, 690, 90, 60, 0.6f)));
+            _faceMouthMgmt.Add(16, new RealFaceData(InitBArea(512, 690, 90, 60, 0.6f)));
+            _faceMouthMgmt.Add(17, new RealFaceData(InitBArea(320, 660, 80, 120), InitBArea(690, 660, 80, 120)));
+            _faceMouthMgmt.Add(18, new RealFaceData(InitBArea(320, 660, 80, 120), InitBArea(690, 660, 80, 120)));
             _faceMouthMgmt.Add(19, new RealFaceData());
             _faceMouthMgmt.Add(20, new RealFaceData());
-            _faceMouthMgmt.Add(21, new RealFaceData(InitBArea(512, 690, 90, 60, 0.4f)));
+            _faceMouthMgmt.Add(21, new RealFaceData(InitBArea(512, 690, 90, 60, 0.6f)));
             _faceMouthMgmt.Add(22, new RealFaceData());
-            _faceMouthMgmt.Add(23, new RealFaceData(InitBArea(512, 690, 90, 60, 0.4f)));
-            _faceMouthMgmt.Add(24, new RealFaceData(InitBArea(512, 690, 90, 60, 0.4f)));
+            _faceMouthMgmt.Add(23, new RealFaceData(InitBArea(512, 690, 90, 60, 0.6f)));
+            _faceMouthMgmt.Add(24, new RealFaceData(InitBArea(512, 690, 90, 60, 0.6f)));
             _faceMouthMgmt.Add(25, new RealFaceData());
 
             _faceEyesMgmt.Add(0, new RealFaceData()); //
-            _faceEyesMgmt.Add(1, new RealFaceData(InitBArea(310, 470, 80, 60, 0.3f), InitBArea(700, 470, 80, 60, 0.3f), InitBArea(455, 505, 60, 80, 0.6f), InitBArea(580, 505, 60, 80, 0.6f))); //
-            _faceEyesMgmt.Add(2, new RealFaceData(InitBArea(310, 470, 80, 60, 0.5f), InitBArea(700, 470, 80, 60, 0.5f), InitBArea(455, 505, 60, 80, 0.6f), InitBArea(580, 505, 60, 80, 0.6f))); //
+            _faceEyesMgmt.Add(1, new RealFaceData(InitBArea(310, 470, 80, 60, 0.6f), InitBArea(700, 470, 80, 60, 0.6f), InitBArea(430, 505, 40, 40, 0.8f), InitBArea(590, 505, 40, 40, 0.8f))); //
+            _faceEyesMgmt.Add(2, new RealFaceData(InitBArea(310, 470, 80, 60, 0.8f), InitBArea(700, 470, 80, 60, 0.8f), InitBArea(430, 505, 40, 40, 0.8f), InitBArea(590, 505, 40, 40, 0.8f))); //
             _faceEyesMgmt.Add(3, new RealFaceData());
             _faceEyesMgmt.Add(4, new RealFaceData());
             _faceEyesMgmt.Add(5, new RealFaceData());
             _faceEyesMgmt.Add(6, new RealFaceData());
-            _faceEyesMgmt.Add(7, new RealFaceData(InitBArea(310, 470, 80, 60, 1f), InitBArea(700, 470, 80, 60, 1f), InitBArea(455, 505, 60, 80, 0.8f), InitBArea(580, 505, 60, 80, 0.8f))); //
-            _faceEyesMgmt.Add(8, new RealFaceData(InitBArea(310, 470, 60, 60, 1f), InitBArea(455, 505, 80, 60, 0.6f), InitBArea(580, 505, 80, 60, 0.6f))); //
-            _faceEyesMgmt.Add(9, new RealFaceData(InitBArea(700, 470, 60, 40, 0.8f), InitBArea(455, 505, 80, 60, 0.6f), InitBArea(580, 505, 80, 60, 0.6f))); //
+            _faceEyesMgmt.Add(7, new RealFaceData(InitBArea(310, 470, 80, 60, 0.6f), InitBArea(700, 470, 80, 60, 0.6f), InitBArea(430, 505, 40, 40, 1.3f), InitBArea(590, 505, 40, 40, 1.3f))); //
+            _faceEyesMgmt.Add(8, new RealFaceData(InitBArea(310, 470, 60, 60), InitBArea(430, 505, 40, 40, 0.8f), InitBArea(590, 505, 40, 40, 0.8f))); //
+            _faceEyesMgmt.Add(9, new RealFaceData(InitBArea(700, 470, 60, 40), InitBArea(430, 505, 40, 40, 0.8f), InitBArea(590, 505, 40, 40, 0.8f))); //
             _faceEyesMgmt.Add(10, new RealFaceData());
             _faceEyesMgmt.Add(11, new RealFaceData()); //
-            _faceEyesMgmt.Add(12, new RealFaceData(InitBArea(310, 470, 80, 60, 0.8f), InitBArea(455, 505, 80, 60, 0.6f))); //
-            _faceEyesMgmt.Add(13, new RealFaceData(InitBArea(700, 470, 80, 60, 0.8f), InitBArea(580, 505, 80, 60, 0.6f))); //
+            _faceEyesMgmt.Add(12, new RealFaceData(InitBArea(310, 470, 80, 60), InitBArea(430, 505, 40, 40, 0.8f))); //
+            _faceEyesMgmt.Add(13, new RealFaceData(InitBArea(700, 470, 80, 60), InitBArea(590, 505, 40, 40, 0.8f))); //
 
-            _self._head_areaBuffer = new ComputeBuffer(8, sizeof(float) * 6);
-            _self._body_areaBuffer = new ComputeBuffer(16, sizeof(float) * 6);
-
-                
+            _self._head_areaBuffer = new ComputeBuffer(16, sizeof(float) * 6);
+            _self._body_areaBuffer = new ComputeBuffer(24, sizeof(float) * 6); 
         }
 
         private void SceneInit()
@@ -610,195 +608,93 @@ namespace RealHumanSupport
                 ociChar.charInfo.fbsCtrl.BlinkCtrl.BaseSpeed = 0.15f;
         }
 
-private static Texture2D MergeRGBAlphaMaps(
-    Texture2D rgbA,
-    Texture2D rgbB,
-    List<BArea> areas = null)
-{
-    int w = Mathf.Min(rgbA.width, rgbB.width);
-    int h = Mathf.Min(rgbA.height, rgbB.height);
-
-    bool useArea = (areas != null && areas.Count > 0);
-
-    // A, B 픽셀 로드
-    Color[] cur = rgbA.GetPixels(0, 0, w, h);
-    Color[] B   = rgbB.GetPixels(0, 0, w, h);
-
-    // 영역 없으면 A 그대로 반환
-    if (!useArea)
-    {
-        Texture2D onlyA = new Texture2D(w, h, TextureFormat.RGBA32, false);
-        onlyA.SetPixels(cur);
-        onlyA.Apply();
-        return onlyA;
-    }
-
-    // ===== area 순차 적용 =====
-    foreach (var area in areas)
-    {
-        float rx = area.RadiusX > 0f ? area.RadiusX : area.RadiusY;
-        float ry = area.RadiusY > 0f ? area.RadiusY : area.RadiusX;
-        if (rx <= 0f || ry <= 0f)
-            continue;
-
-        float invRx = 1f / rx;
-        float invRy = 1f / ry;
-
-        // Unity Y → 이미지 Y 보정
-        float areaY = (h - 1) - area.Y;
-
-        // 중심 강도값
-        float baseStrength = area.Strong * area.BumpBooster;
-
-        Parallel.For(0, h, y =>
+        private static Texture2D MergeRGBAlphaMaps(
+            Texture2D rgbA,
+            Texture2D rgbB,
+            List<BArea> areas = null)
         {
-            float dy = y - areaY;
+            int w = Mathf.Min(rgbA.width, rgbB.width);
+            int h = Mathf.Min(rgbA.height, rgbB.height);
 
-            for (int x = 0; x < w; x++)
+            bool useArea = (areas != null && areas.Count > 0);
+
+            Color[] cur = rgbA.GetPixels(0, 0, w, h);
+            Color[] B   = rgbB.GetPixels(0, 0, w, h);
+
+            if (!useArea)
             {
-                int idx = y * w + x;
+                Texture2D onlyA = new Texture2D(w, h, TextureFormat.RGBA32, false);
+                onlyA.SetPixels(cur);
+                onlyA.Apply();
+                return onlyA;
+            }
 
-                float dx = x - area.X;
-
-                // ===== ellipse test =====
-                float nx = dx * invRx;
-                float ny = dy * invRy;
-                float ellipseVal = nx * nx + ny * ny;
-                if (ellipseVal > 1f)
+            foreach (var area in areas)
+            {
+                float rx = area.RadiusX > 0f ? area.RadiusX : area.RadiusY;
+                float ry = area.RadiusY > 0f ? area.RadiusY : area.RadiusX;
+                if (rx <= 0f || ry <= 0f)
                     continue;
 
-                // ===== falloff mask =====
-                float t = Mathf.Sqrt(ellipseVal);
-                
-                // mask = 중심 강도값 * falloff
-                float mask = baseStrength * (1f - t * t * t);
-                mask = Mathf.Clamp01(mask);
+                float invRx = 1f / rx;
+                float invRy = 1f / ry;
 
-                float weightB = mask;
-                float weightA = 1f - weightB;
+                float areaY = (h - 1) - area.Y;
 
-                Color a = cur[idx];
-                Color b = B[idx];
+                float rgbStrength  = Mathf.Clamp01(area.BumpBooster);
+                float alphaBooster = Mathf.Max(1f, area.Strong);
 
-                // ===== Python식 pure blending =====
-                float gMerged = a.g * weightA + b.g * weightB;
-                float bMerged = a.b * weightA + b.b * weightB;
-                float aMerged = a.a * weightA + b.a * weightB;
+                Parallel.For(0, h, y =>
+                {
+                    float dy = y - areaY;
 
-                // R은 255 고정
-                cur[idx] = new Color(
-                    1f,
-                    Mathf.Clamp01(gMerged),
-                    Mathf.Clamp01(bMerged),
-                    Mathf.Clamp01(aMerged)
-                );
+                    for (int x = 0; x < w; x++)
+                    {
+                        int idx = y * w + x;
+
+                        float dx = x - area.X;
+
+                        // ellipse test
+                        float nx = dx * invRx;
+                        float ny = dy * invRy;
+                        float ellipseVal = nx * nx + ny * ny;
+                        if (ellipseVal > 1f)
+                            continue;
+
+                        // extreme falloff
+                        float t = Mathf.Sqrt(ellipseVal);
+                        float falloff = Mathf.Clamp01(1f - t * t * t);
+
+                        Color a = cur[idx];
+                        Color b = B[idx];
+
+                        // ===== RGB =====
+                        float rgbWeight = rgbStrength * falloff;
+                        float invRgb = 1f - rgbWeight;
+
+                        float g = a.g * invRgb + b.g * rgbWeight;
+                        float bb = a.b * invRgb + b.b * rgbWeight;
+
+                        // ===== Alpha =====
+                        float boostFactor = Mathf.Lerp(1f, alphaBooster, falloff);
+                        float boostedBAlpha = Mathf.Clamp01(b.a * boostFactor);
+                        float aMerged = Mathf.Lerp(a.a, boostedBAlpha, falloff);
+
+                        cur[idx] = new Color(
+                            1f,
+                            Mathf.Clamp01(g),
+                            Mathf.Clamp01(bb),
+                            Mathf.Clamp01(aMerged)
+                        );
+                    }
+                });
             }
-        });
-    }
 
-    // ===== 결과 Texture 생성 =====
-    Texture2D result = new Texture2D(w, h, TextureFormat.RGBA32, false);
-    result.SetPixels(cur);
-    result.Apply();
-    return result;
-}
-        // private static Texture2D MergeRGBAlphaMaps(
-        //     Texture2D rgbA,
-        //     Texture2D rgbB,
-        //     List<BArea> areas = null)
-        // {
-        //     int w = Mathf.Min(rgbA.width, rgbB.width);
-        //     int h = Mathf.Min(rgbA.height, rgbB.height);
-
-        //     bool useArea = (areas != null && areas.Count > 0);
-
-        //     // A, B 픽셀 로드
-        //     Color[] cur = rgbA.GetPixels(0, 0, w, h);
-        //     Color[] B   = rgbB.GetPixels(0, 0, w, h);
-
-        //     // 영역 없으면 A 그대로 반환
-        //     if (!useArea)
-        //     {
-        //         Texture2D onlyA = new Texture2D(w, h, TextureFormat.RGBA32, false);
-        //         onlyA.SetPixels(cur);
-        //         onlyA.Apply();
-        //         return onlyA;
-        //     }
-
-        //     // ===== area 순차 적용 =====
-        //     foreach (var area in areas)
-        //     {
-        //         float rx = area.RadiusX > 0f ? area.RadiusX : area.RadiusY;
-        //         float ry = area.RadiusY > 0f ? area.RadiusY : area.RadiusX;
-        //         if (rx <= 0f || ry <= 0f)
-        //             continue;
-
-        //         float invRx = 1f / rx;
-        //         float invRy = 1f / ry;
-
-        //         // Unity Y → 이미지 Y 보정
-        //         float areaY = (h - 1) - area.Y;
-
-        //         // mask 증폭용
-        //         float strongMul = area.Strong * area.BumpBooster;
-
-        //         Parallel.For(0, h, y =>
-        //         {
-        //             float dy = y - areaY;
-
-        //             for (int x = 0; x < w; x++)
-        //             {
-        //                 int idx = y * w + x;
-
-        //                 float dx = x - area.X;
-
-        //                 // ===== ellipse test =====
-        //                 float nx = dx * invRx;
-        //                 float ny = dy * invRy;
-        //                 float ellipseVal = nx * nx + ny * ny;
-        //                 if (ellipseVal > 1f)
-        //                     continue;
-
-        //                 // ===== falloff mask =====
-        //                 // t = 0(center) ~ 1(edge)
-        //                 float t = Mathf.Sqrt(ellipseVal);
-
-        //                 // mask = 1 - t^3
-        //                 float mask = 1f - (t * t * t);
-
-        //                 // ===== strong / booster → mask에만 적용 =====
-        //                 // float boostedMask = mask * (1f + strongMul);
-        //                 float boostedMask = Mathf.Clamp01(mask + strongMul * mask);
-        //                 boostedMask = Mathf.Clamp01(boostedMask);
-
-        //                 float weightB = boostedMask;
-        //                 float weightA = 1f - weightB;
-
-        //                 Color a = cur[idx];
-        //                 Color b = B[idx];
-
-        //                 // ===== Python식 pure blending =====
-        //                 float gMerged = a.g * weightA + b.g * weightB;
-        //                 float bMerged = a.b * weightA + b.b * weightB;
-        //                 float aMerged = a.a * weightA + b.a * weightB;
-
-        //                 // R은 255 고정
-        //                 cur[idx] = new Color(
-        //                     1f,
-        //                     Mathf.Clamp01(gMerged),
-        //                     Mathf.Clamp01(bMerged),
-        //                     Mathf.Clamp01(aMerged)
-        //                 );
-        //             }
-        //         });
-        //     }
-
-        //     // ===== 결과 Texture 생성 =====
-        //     Texture2D result = new Texture2D(w, h, TextureFormat.RGBA32, false);
-        //     result.SetPixels(cur);
-        //     result.Apply();
-        //     return result;
-        // }
+            Texture2D result = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            result.SetPixels(cur);
+            result.Apply();
+            return result;
+        }
 
 
         private static PositionData GetBoneRotationFromIK(OCIChar.IKInfo info)
@@ -887,8 +783,6 @@ private static Texture2D MergeRGBAlphaMaps(
             else
                 bodyOriginTexture = realHumanData.m_skin_body.GetTexture(realHumanData.body_bumpmap_name) as Texture2D;
 
-            // realHumanData.body_bumpScale2 = realHumanData.m_skin_body.GetFloat("_BumpScale2");
-
             realHumanData.headOriginTexture = SetTextureSize(MakeReadableTexture(headOriginTexture), _self._faceExpressionFemaleBumpMap2.width, _self._faceExpressionFemaleBumpMap2.height);
             realHumanData.bodyOriginTexture = SetTextureSize(MakeReadableTexture(bodyOriginTexture), _self._bodyStrongFemaleBumpMap2.width, _self._bodyStrongFemaleBumpMap2.height);
     
@@ -931,8 +825,8 @@ private static Texture2D MergeRGBAlphaMaps(
                 Y = y,
                 RadiusX = radiusX,
                 RadiusY = radiusY,
-                Strong = 1.0f,
-                BumpBooster = bumpBooster
+                BumpBooster = bumpBooster,     
+                Strong = Remap(bumpBooster, 0.0f, 1.0f, 1.0f, 1.5f)
             };
         }
 
@@ -985,12 +879,9 @@ private static Texture2D MergeRGBAlphaMaps(
                 //     realHumanData.tf_n_height = ociChar.charInfo.objBodyBone.transform.FindLoop("cm_N_height");
                 // }
 
-                // realHumanData.tf_j_r_foot = ociChar.charInfo.objBodyBone.transform.FindLoop("cf_J_Foot01_R");
-
                 foreach (OCIChar.BoneInfo bone in ociChar.listBones)
                 {
                     if (bone.guideObject != null && bone.guideObject.transformTarget != null) {
-                        // UnityEngine.Debug.Log($">> bone : + {bone.guideObject.transformTarget.name}");
                         if(bone.guideObject.transformTarget.name.Contains("_J_Spine01"))
                         {
                             realHumanData.fk_spine01_bone = bone; // 하단
@@ -1116,7 +1007,6 @@ private static Texture2D MergeRGBAlphaMaps(
                     if (origin_texture != null)
                     {
                         int kernel = _self._mergeComputeShader.FindKernel("CSMain");
-                        int currentAreaCount = 0;
                         int w = 1024;
                         int h = 1024;
                         // Texture texA;
@@ -1143,7 +1033,7 @@ private static Texture2D MergeRGBAlphaMaps(
                             // 셰이더 파라미터 설정
                             _self._mergeComputeShader.SetInt("Width", w);
                             _self._mergeComputeShader.SetInt("Height", h);
-                            _self._mergeComputeShader.SetInt("AreaCount", currentAreaCount);
+                            _self._mergeComputeShader.SetInt("AreaCount", areas.Count);
                             _self._mergeComputeShader.SetTexture(kernel, "TexA", origin_texture);
                             _self._mergeComputeShader.SetTexture(kernel, "TexB", express_texture);
                             _self._mergeComputeShader.SetTexture(kernel, "Result", _self._head_rt);
@@ -1219,6 +1109,7 @@ private static Texture2D MergeRGBAlphaMaps(
                 PositionData fk_right_shoulder= GetBoneRotationFromFK(realHumanData.fk_right_shoulder_bone);
 
                 PositionData fk_head= GetBoneRotationFromFK(realHumanData.fk_head_bone);
+                PositionData fk_neck= GetBoneRotationFromFK(realHumanData.fk_neck_bone);
 
                 float left_shin_bs = 0.0f;
                 float left_calf_bs = 0.0f;
@@ -1226,7 +1117,7 @@ private static Texture2D MergeRGBAlphaMaps(
                 float left_thigh_ft_bs = 0.0f;
                 float left_thigh_bk_bs = 0.0f;
                 float left_thigh_inside_bs = 0.0f;
-                float left_spine_bs = 0.0f;
+                float left_ribs_bs = 0.0f;
                 float left_neckline_bs = 0.0f;
 
                 float right_shin_bs = 0.0f;
@@ -1235,7 +1126,7 @@ private static Texture2D MergeRGBAlphaMaps(
                 float right_thigh_ft_bs = 0.0f;
                 float right_thigh_bk_bs = 0.0f;
                 float right_thigh_inside_bs = 0.0f;
-                float right_spine_bs = 0.0f;
+                float right_ribs_bs = 0.0f;
                 float right_neckline_bs = 0.0f;
 
                 float spine_bs = 0.0f;
@@ -1248,24 +1139,24 @@ private static Texture2D MergeRGBAlphaMaps(
 
                 if (ociChar.oiCharInfo.enableFK) {
      
-                    // 허벅지 왼쪽
+                // 허벅지 왼쪽
                     if (fk_left_thigh._front > 1.0f)
                     {   // 뒷방향
                         bumpscale = Math.Min(Remap(fk_left_thigh._front, 0.0f, 120.0f, 0.1f, 1.0f), 1.0f);                     
                         left_butt_bs += bumpscale * 0.8f;
-                        left_thigh_bk_bs += bumpscale * 0.8f;                                               
+                        left_thigh_bk_bs += bumpscale * 0.8f;                                     
                     } 
                     else
                     {   // 앞방향
                         bumpscale = Math.Min(Remap(Math.Abs(fk_left_thigh._front), 0.0f, 120.0f, 0.0f, 1.0f), 1.0f);
                         if (fk_left_thigh._front < -130.0f)
                         {                            
-                            left_thigh_bk_bs += bumpscale * 1.0f;                          
+                            left_thigh_bk_bs += bumpscale * 1.0f;                 
                         }                        
-                        left_thigh_inside_bs += bumpscale * 1.0f;
+                        left_thigh_inside_bs += bumpscale * 0.8f;
                         left_thigh_ft_bs += bumpscale * 0.8f;                                                                      
                     }
-                    // 허벅지 오른쪽
+                // 허벅지 오른쪽
                     if (fk_right_thigh._front > 1.0f)
                     {   // 뒷방향      
                         bumpscale = Math.Min(Remap(fk_right_thigh._front, 0.0f, 120.0f, 0.1f, 1.0f), 1.0f);
@@ -1279,29 +1170,34 @@ private static Texture2D MergeRGBAlphaMaps(
                         {                            
                             right_thigh_bk_bs += bumpscale * 1.0f; 
                         } 
-                        right_thigh_inside_bs += bumpscale * 1.0f;                       
+                        right_thigh_inside_bs += bumpscale * 0.8f;                       
                         right_thigh_ft_bs += bumpscale * 0.8f;  
                     }
                     
-                    // 무릎 왼쪽
+                // 무릎 왼쪽
                     if (fk_left_knee._front > 1.0f)
                     {   // 뒷방향       
                         float strong = CombineBySign(fk_left_thigh._front, fk_left_knee._front);
                         bumpscale = Math.Min(Remap(strong, 0.0f, 90.0f, 0.1f, 1.0f), 1.0f);
                         left_thigh_ft_bs += bumpscale * 0.4f;
-                        left_thigh_bk_bs += bumpscale * 0.6f;
-                        UnityEngine.Debug.Log($">> fk_left_knee, strong: {strong}, scale: {left_thigh_bk_bs}");                                                                        
-                    } 
-                    // 무릎 오른쪽
+                        left_thigh_bk_bs += bumpscale * 0.4f;                                                                     
+                    } else
+                    {
+                        left_thigh_inside_bs += bumpscale * 0.3f;                        
+                    }
+                // 무릎 오른쪽
                     if (fk_right_knee._front > 1.0f)
                     {   // 뒷방향      
                         float strong = CombineBySign(fk_right_thigh._front, fk_right_knee._front);
                         bumpscale = Math.Min(Remap(strong, 0.0f, 90.0f, 0.1f, 1.0f), 1.0f);
                         right_thigh_ft_bs += bumpscale * 0.4f;
-                        right_thigh_bk_bs += bumpscale * 0.6f;                         
-                    }  
+                        right_thigh_bk_bs += bumpscale * 0.4f;                         
+                    }  else
+                    {
+                        right_thigh_inside_bs += bumpscale * 0.3f;                        
+                    }
 
-                    // 허리
+                // 허리
                     if (fk_spine02._front > 1.0f)
                     {
                         bumpscale = Math.Min(Remap(fk_spine02._front, 0.0f, 90.0f, 0.0f, 1.0f), 1.0f);
@@ -1310,39 +1206,41 @@ private static Texture2D MergeRGBAlphaMaps(
                     else
                     {
                         bumpscale = Math.Min(Remap(Math.Abs(fk_spine02._front), 0.0f, 90.0f, 0.0f, 1.0f), 1.0f);
-                        ribs_bs += bumpscale * 1.0f;
+                        ribs_bs += bumpscale * 0.80f;
                     }
 
                     if (fk_spine02._side > 1.0f)
                     {   // 왼쪽 기울기                                            
                         bumpscale = Math.Min(Remap(fk_spine02._side, 0.0f, 70.0f, 0.0f, 1.0f), 1.0f);
-                        left_spine_bs += bumpscale * 0.2f;                  
+                        left_ribs_bs += bumpscale * 0.3f;                  
                     } 
                     else
                     {   // 오른쪽 기울기
                         bumpscale = Math.Min(Remap(Math.Abs(fk_spine02._side), 0.0f, 70.0f, 0.0f, 1.0f), 1.0f);
-                        right_spine_bs += bumpscale * 0.2f;    
+                        right_ribs_bs += bumpscale * 0.3f;    
                     }
 
-                    // 목
+                // 목
                     if (fk_head._front > 1.0f)
                     {   // 앞으로 숙이기                
-                        bumpscale = Math.Min(Remap(fk_head._front, 0.0f, 70.0f, 0.0f, 1.0f), 1.0f);
-                        neck_spine_bs += bumpscale * 0.8f;
+                        float strong = CombineBySign(fk_neck._front, fk_head._front);
+                        bumpscale = Math.Min(Remap(strong, 0.0f, 70.0f, 0.0f, 1.0f), 1.0f);
+                        neck_spine_bs += bumpscale * 0.9f;
                     } else
                     {   // 뒤로 숙이기
-                        bumpscale = Math.Min(Remap(Math.Abs(fk_head._front), 0.0f, 50.0f, 0.0f, 1.0f), 1.0f);
-                        neckline_bs += bumpscale * 0.8f;    
+                        float strong = CombineBySign(fk_neck._front, fk_head._front);
+                        bumpscale = Math.Min(Remap(strong, 0.0f, 50.0f, 0.0f, 1.0f), 1.0f);
+                        neckline_bs += bumpscale * 0.9f;    
                     }
 
                     if (fk_head._side > 1.0f)
                     {   // 왼쪽 기울기            
                         bumpscale = Math.Min(Remap(fk_head._side, 0.0f, 90.0f, 0.0f, 1.0f), 1.0f);    
-                        left_neckline_bs += bumpscale * 0.4f;                                                        
+                        left_neckline_bs += bumpscale * 0.3f;
                     } else
                     {   // 오른쪽 기울기
                         bumpscale = Math.Min(Remap(Math.Abs(fk_head._side), 0.0f, 90.0f, 0.0f, 1.0f), 1.0f);                 
-                        right_neckline_bs += bumpscale * 0.4f;                             
+                        right_neckline_bs += bumpscale * 0.3f;                             
                     } 
                 }
                 
@@ -1400,91 +1298,89 @@ private static Texture2D MergeRGBAlphaMaps(
                     }
                 }                
 
-                if (neck_spine_bs != 0.0f)
-                {
-                    areas.Add(InitBArea(780, 230, 60, 120, Math.Min(neck_spine_bs, 3.0f)));; 
-                }
                 if (neckline_bs != 0.0f)
                 {   
-                    areas.Add(InitBArea(260, 100, 80, 80, Math.Min(neckline_bs, 3.0f)));; // 목선    
+                    areas.Add(InitBArea(260, 100, 140, 90, Math.Min(neckline_bs, 2.0f))); // 목선
+                }
+                if (neck_spine_bs != 0.0f)
+                {
+                    areas.Add(InitBArea(775, 180, 80, 120, Math.Min(neck_spine_bs, 2.0f)));
                 }
                 if (left_neckline_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(220, 100, 40, 80, Math.Min(left_neckline_bs, 3.0f)));; 
+                    areas.Add(InitBArea(220, 120, 40, 40, Math.Min(left_neckline_bs, 2.0f))); 
                 }
                 if (right_neckline_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(300, 100, 40, 80, Math.Min(right_neckline_bs, 3.0f)));; 
+                    areas.Add(InitBArea(300, 120, 40, 40, Math.Min(right_neckline_bs, 2.0f)));
                 }                    
                 if (spine_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(780, 410, 60, 200, Math.Min(spine_bs, 3.0f)));; // 척추
+                    areas.Add(InitBArea(775, 250, 80, 200, Math.Min(spine_bs, 2.0f))); // 척추
                 }
                 if (ribs_bs != 0.0f)
                 {   
-                    areas.Add(InitBArea(250, 560, 250, 200, Math.Min(ribs_bs, 3.0f)));; // 갈비
+                    areas.Add(InitBArea(250, 560, 240, 220, Math.Min(ribs_bs, 2.0f))); // 갈비
                 }
-
-                if (left_thigh_ft_bs != 0.0f)
+                if (left_ribs_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(400, 1000, 120, 200, Math.Min(left_thigh_ft_bs, 3.0f)));; // 앞 허벅지        
-                }
-                if (left_thigh_bk_bs != 0.0f)
-                { 
-                    areas.Add(InitBArea(660, 1000, 120, 260, Math.Min(left_thigh_bk_bs, 3.0f)));; // 뒷 허벅지                        
-                }                     
+                    areas.Add(InitBArea(100, 500, 80, 240, Math.Min(left_ribs_bs, 2.0f)));   
+                }                
+                if (right_ribs_bs != 0.0f)
+                {
+                    areas.Add(InitBArea(420, 500, 80, 240, Math.Min(right_ribs_bs, 2.0f)));
+                } 
+
                 if (left_thigh_inside_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(330, 890, 80, 160, Math.Min(left_thigh_inside_bs, 3.0f)));; // 앞 허벅지                                          
-                }                     
-                if (left_shin_bs != 0.0f)
-                {
-                    areas.Add(InitBArea(400, 1500, 180, 240, Math.Min(left_shin_bs, 3.0f)));; // 앞 정강이                                        
-                }                    
-                if (left_butt_bs != 0.0f)
-                {
-                    areas.Add(InitBArea(620, 720, 160, 240, Math.Min(left_butt_bs, 3.0f)));; // 뒷 엉덩이                                                
-                }        
-                if (left_calf_bs != 0.0f)
-                {
-                    areas.Add(InitBArea(660, 1460, 120, 160, Math.Min(left_calf_bs, 3.0f)));; // 뒷 종아리 강조                                                     
-                }     
-                if (left_spine_bs != 0.0f)
-                {
-                    areas.Add(InitBArea(100, 500, 160, 240, Math.Min(left_spine_bs, 3.0f)));;   
-                }
-
-                if (right_thigh_ft_bs != 0.0f)
-                {
-                    areas.Add(InitBArea(120, 1000, 120, 200, Math.Min(right_thigh_ft_bs, 3.0f)));; // 앞 허벅지                         
-                }
-                if (right_thigh_bk_bs != 0.0f)
-                {
-                    areas.Add(InitBArea(910, 1000, 120, 260, Math.Min(right_thigh_bk_bs, 3.0f)));; // 뒷쪽 허벅지
-                    // UnityEngine.Debug.Log($">> right_thigh_bk_bs {right_thigh_bk_bs}");
+                    areas.Add(InitBArea(360, 910, 90, 160, Math.Min(left_thigh_inside_bs, 2.0f))); // 앞 허벅지 인쪽
                 } 
                 if (right_thigh_inside_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(190, 890, 80, 160, Math.Min(right_thigh_inside_bs, 3.0f)));; // 앞 허벅지   
-                    // UnityEngine.Debug.Log($">> right_thigh_inside_bs {right_thigh_inside_bs}");                                    
+                    areas.Add(InitBArea(165, 910, 90, 160, Math.Min(right_thigh_inside_bs, 2.0f))); // 앞 허벅지 안쪽                                
+                } 
+
+                if (left_thigh_ft_bs != 0.0f)
+                {
+                    areas.Add(InitBArea(400, 950, 110, 280, Math.Min(left_thigh_ft_bs, 2.0f))); // 앞 허벅지        
+                }
+                if (left_thigh_bk_bs != 0.0f)
+                { 
+                    areas.Add(InitBArea(660, 1000, 110, 260, Math.Min(left_thigh_bk_bs, 2.0f))); // 뒷 허벅지                        
+                }                                                         
+                if (left_shin_bs != 0.0f)
+                {
+                    areas.Add(InitBArea(400, 1450, 110, 230, Math.Min(left_shin_bs, 2.0f))); // 앞 정강이                                        
+                }                    
+                if (left_butt_bs != 0.0f)
+                {
+                    areas.Add(InitBArea(680, 840, 90, 90, Math.Min(left_butt_bs, 2.0f))); // 뒷 엉덩이                                                
+                }        
+                if (left_calf_bs != 0.0f)
+                {
+                    areas.Add(InitBArea(660, 1460, 120, 160, Math.Min(left_calf_bs, 2.0f))); // 뒷 종아리 강조                                                     
+                }     
+
+                if (right_thigh_ft_bs != 0.0f)
+                {
+                    areas.Add(InitBArea(120, 950, 110, 280, Math.Min(right_thigh_ft_bs, 2.0f))); // 앞 허벅지                         
+                }
+                if (right_thigh_bk_bs != 0.0f)
+                {
+                    areas.Add(InitBArea(910, 1000, 110, 260, Math.Min(right_thigh_bk_bs, 2.0f))); // 뒷쪽 허벅지
                 }                    
                 if (right_shin_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(120, 1500, 180, 240, Math.Min(right_shin_bs, 3.0f)));; // 앞 정강이                                          
-                    // UnityEngine.Debug.Log($">> right_shin_bs {right_shin_bs}");
+                    areas.Add(InitBArea(120, 1450, 110, 230, Math.Min(right_shin_bs, 2.0f))); // 앞 정강이                            
                 }
                 if (right_butt_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(930, 720, 160, 240, Math.Min(right_butt_bs, 3.0f)));; // 뒷쪽 엉덩이                        
+                    areas.Add(InitBArea(900, 840, 90, 90, Math.Min(right_butt_bs, 2.0f))); // 뒷쪽 엉덩이                        
                 }
                 if (right_calf_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(880, 1460, 120, 160, Math.Min(right_calf_bs, 3.0f)));; // 뒷쪽 종아리 강조                                                         
+                    areas.Add(InitBArea(880, 1460, 120, 160, Math.Min(right_calf_bs, 2.0f))); // 뒷쪽 종아리 강조                                                         
                 }
-                if (right_spine_bs != 0.0f)
-                {
-                    areas.Add(InitBArea(420, 500, 160, 240, Math.Min(right_spine_bs, 3.0f)));;
-                } 
 
                 realHumanData.prev_lk_left_foot_rot = lk_left_foot._q;
                 realHumanData.prev_lk_right_foot_rot = lk_right_foot._q;
@@ -1502,41 +1398,41 @@ private static Texture2D MergeRGBAlphaMaps(
            
                 if (origin_texture != null)
                 {
-                    // int kernel = _self._mergeComputeShader.FindKernel("CSMain");
+                    int kernel = _self._mergeComputeShader.FindKernel("CSMain");
 
-                    // int w = 2048;
-                    // int h = 2048;
-                    // // int currentAreaCount = 0;
+                    int w = 2048;
+                    int h = 2048;
+                    // int currentAreaCount = 0;
 
-                    // // RenderTexture 초기화 및 재사용
-                    // if (_self._body_rt == null || _self._body_rt.width != w || _self._body_rt.height != h)
-                    // {
-                    //     if (_self._body_rt != null) _self._body_rt.Release();
-                    //     _self._body_rt = new RenderTexture(w, h, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
-                    //     _self._body_rt.enableRandomWrite = true;
-                    //     _self._body_rt.Create();
-                    // }
+                    // RenderTexture 초기화 및 재사용
+                    if (_self._body_rt == null || _self._body_rt.width != w || _self._body_rt.height != h)
+                    {
+                        if (_self._body_rt != null) _self._body_rt.Release();
+                        _self._body_rt = new RenderTexture(w, h, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+                        _self._body_rt.enableRandomWrite = true;
+                        _self._body_rt.Create();
+                    }
 
                     // 영역 데이터가 변경된 경우만 업데이트
                     if (areas.Count > 0)
                     {        
-                        // _self._body_areaBuffer.SetData(areas.ToArray());
-                        // // 셰이더 파라미터 설정
-                        // _self._mergeComputeShader.SetInt("Width", w);
-                        // _self._mergeComputeShader.SetInt("Height", h);
-                        // _self._mergeComputeShader.SetInt("AreaCount", areas.Count);
-                        // _self._mergeComputeShader.SetTexture(kernel, "TexA", origin_texture);
-                        // _self._mergeComputeShader.SetTexture(kernel, "TexB", strong_texture);
-                        // _self._mergeComputeShader.SetTexture(kernel, "Result", _self._body_rt);
-                        // _self._mergeComputeShader.SetBuffer(kernel, "Areas", _self._body_areaBuffer);
+                        _self._body_areaBuffer.SetData(areas.ToArray());
+                        // 셰이더 파라미터 설정
+                        _self._mergeComputeShader.SetInt("Width", w);
+                        _self._mergeComputeShader.SetInt("Height", h);
+                        _self._mergeComputeShader.SetInt("AreaCount", areas.Count);
+                        _self._mergeComputeShader.SetTexture(kernel, "TexA", origin_texture);
+                        _self._mergeComputeShader.SetTexture(kernel, "TexB", strong_texture);
+                        _self._mergeComputeShader.SetTexture(kernel, "Result", _self._body_rt);
+                        _self._mergeComputeShader.SetBuffer(kernel, "Areas", _self._body_areaBuffer);
 
-                        // // Dispatch 실행
-                        // _self._mergeComputeShader.Dispatch(kernel, Mathf.CeilToInt(w / 8f), Mathf.CeilToInt(h / 8f), 1);                 
+                        // Dispatch 실행
+                        _self._mergeComputeShader.Dispatch(kernel, Mathf.CeilToInt(w / 8f), Mathf.CeilToInt(h / 8f), 1);                 
                         
-                        // realHumanData.m_skin_body.SetTexture(realHumanData.body_bumpmap_name, _self._body_rt);
+                        realHumanData.m_skin_body.SetTexture(realHumanData.body_bumpmap_name, _self._body_rt);
 
-                        Texture2D merged =  MergeRGBAlphaMaps(origin_texture, strong_texture, areas);    
-                        realHumanData.m_skin_body.SetTexture(realHumanData.body_bumpmap_name, merged);
+                        // Texture2D merged =  MergeRGBAlphaMaps(origin_texture, strong_texture, areas);    
+                        // realHumanData.m_skin_body.SetTexture(realHumanData.body_bumpmap_name, merged);
                         // SaveAsPNG(merged, "./body_merge.png");
                         // SaveAsPNG(strong_texture, "./body_strong.png");
                         // SaveAsPNG(RenderTextureToTexture2D(_self._body_rt), "./body_merged.png");                     
