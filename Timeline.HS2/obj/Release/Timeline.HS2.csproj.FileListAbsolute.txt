@@ -24,3 +24,9 @@ D:\작업\hs2\working\Timeline.HS2\obj\Release\Timeline.dll
 D:\작업\hs2\working\bin\HS2\Timeline.dll.config
 D:\작업\hs2\working\bin\HS2\Timeline.dll
 D:\작업\hs2\working\Timeline.HS2\obj\Release\Timeline.47C78118.Up2Date
+D:\work\hs2\working\Timeline.HS2\obj\Release\Timeline.HS2.csproj.AssemblyReference.cache
+D:\work\hs2\working\Timeline.HS2\obj\Release\Timeline.HS2.csproj.CoreCompileInputs.cache
+D:\work\hs2\working\Timeline.HS2\obj\Release\Timeline.dll
+D:\work\hs2\working\bin\HS2\Timeline.dll.config
+D:\work\hs2\working\bin\HS2\Timeline.dll
+D:\work\hs2\working\Timeline.HS2\obj\Release\Timeline.47C78118.Up2Date

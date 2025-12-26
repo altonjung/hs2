@@ -66,7 +66,7 @@ namespace RealHumanSupport
     {
         #region Constants
         public const string Name = "RealHumanSupport";
-        public const string Version = "0.9.0";
+        public const string Version = "0.9.0.2";
         public const string GUID = "com.alton.illusionplugins.RealHuman";
         internal const string _ownerId = "RealHumanSupport";
 #if KOIKATSU || AISHOUJO || HONEYSELECT2
@@ -115,9 +115,13 @@ namespace RealHumanSupport
 
         private Texture2D _faceExpressionMaleBumpMap2;
         
-        private Texture2D _bodyStrongFemaleBumpMap2;
+        private Texture2D _bodyStrongFemale_A_BumpMap2;
+        
+        private Texture2D _bodyStrongFemale_B_BumpMap2;
 
-        private Texture2D _bodyStrongMaleBumpMap2;
+        private Texture2D _bodyStrongMale_A_BumpMap2;
+
+        private Texture2D _bodyStrongMale_B_BumpMap2;
 
         private ComputeShader _mergeComputeShader;
 
@@ -226,8 +230,10 @@ namespace RealHumanSupport
                 UnityEngine.Debug.Log($">> Load {_bundle}");
             }
 
-            _bodyStrongFemaleBumpMap2 = _bundle.LoadAsset<Texture2D>("Body_Strong_F_BumpMap2");
-            _bodyStrongMaleBumpMap2 = _bundle.LoadAsset<Texture2D>("Body_Strong_M_BumpMap2");
+            _bodyStrongFemale_A_BumpMap2 = _bundle.LoadAsset<Texture2D>("Body_Strong_F_BumpMap2");
+            _bodyStrongFemale_B_BumpMap2 = _bundle.LoadAsset<Texture2D>("Body_Strong_FB_BumpMap2");
+            _bodyStrongMale_A_BumpMap2 = _bundle.LoadAsset<Texture2D>("Body_Strong_M_BumpMap2");
+            _bodyStrongMale_B_BumpMap2 = _bundle.LoadAsset<Texture2D>("Body_Strong_MB_BumpMap2");
             
             _faceExpressionFemaleBumpMap2 = _bundle.LoadAsset<Texture2D>("Face_Expression_F_BumpMap2");
             _faceExpressionMaleBumpMap2 = _bundle.LoadAsset<Texture2D>("Face_Expression_M_BumpMap2");
@@ -237,24 +243,24 @@ namespace RealHumanSupport
             // UnityEngine.Debug.Log($">> _mergeComputeShader {_mergeComputeShader}");
    
             _faceMouthMgmt.Add(0, new RealFaceData());
-            _faceMouthMgmt.Add(1, new RealFaceData(InitBArea(512, 610, 120, 80, 0.6f)));
-            _faceMouthMgmt.Add(2, new RealFaceData(InitBArea(512, 610, 140, 90, 0.6f)));
+            _faceMouthMgmt.Add(1, new RealFaceData(InitBArea(512, 620, 120, 80, 0.6f)));
+            _faceMouthMgmt.Add(2, new RealFaceData(InitBArea(512, 640, 120, 100, 0.7f)));
             _faceMouthMgmt.Add(3, new RealFaceData());
-            _faceMouthMgmt.Add(4, new RealFaceData(InitBArea(512, 690, 60, 50, 0.6f)));
-            _faceMouthMgmt.Add(5, new RealFaceData(InitBArea(512, 690, 60, 50, 0.6f)));
-            _faceMouthMgmt.Add(6, new RealFaceData(InitBArea(512, 690, 60, 50, 0.6f)));
-            _faceMouthMgmt.Add(7, new RealFaceData(InitBArea(470, 590, 60, 40)));
-            _faceMouthMgmt.Add(8, new RealFaceData(InitBArea(570, 590, 60, 40)));
+            _faceMouthMgmt.Add(4, new RealFaceData(InitBArea(512, 690, 70, 75, 0.6f)));
+            _faceMouthMgmt.Add(5, new RealFaceData(InitBArea(512, 690, 70, 75, 0.6f)));
+            _faceMouthMgmt.Add(6, new RealFaceData(InitBArea(512, 690, 70, 75, 0.6f)));
+            _faceMouthMgmt.Add(7, new RealFaceData(InitBArea(470, 590, 50, 50)));
+            _faceMouthMgmt.Add(8, new RealFaceData(InitBArea(560, 590, 50, 50)));
             _faceMouthMgmt.Add(9, new RealFaceData(InitBArea(512, 590, 100, 60)));
-            _faceMouthMgmt.Add(10, new RealFaceData(InitBArea(520, 630, 40, 40), InitBArea(320, 660, 80, 120), InitBArea(690, 660, 80, 120)));
-            _faceMouthMgmt.Add(11, new RealFaceData(InitBArea(520, 630, 40, 40), InitBArea(320, 660, 80, 120), InitBArea(690, 660, 80, 120)));
+            _faceMouthMgmt.Add(10, new RealFaceData(InitBArea(512, 630, 40, 40), InitBArea(330, 650, 110, 130), InitBArea(700, 650, 110, 130)));
+            _faceMouthMgmt.Add(11, new RealFaceData(InitBArea(512, 630, 40, 40), InitBArea(330, 650, 110, 130), InitBArea(700, 650, 110, 130)));
             _faceMouthMgmt.Add(12, new RealFaceData(InitBArea(512, 690, 90, 60, 0.5f)));
-            _faceMouthMgmt.Add(13, new RealFaceData(InitBArea(320, 660, 80, 120), InitBArea(690, 660, 80, 120)));
+            _faceMouthMgmt.Add(13, new RealFaceData(InitBArea(330, 650, 110, 130), InitBArea(700, 650, 110, 130)));
             _faceMouthMgmt.Add(14, new RealFaceData());
             _faceMouthMgmt.Add(15, new RealFaceData(InitBArea(512, 690, 90, 60, 0.6f)));
             _faceMouthMgmt.Add(16, new RealFaceData(InitBArea(512, 690, 90, 60, 0.6f)));
-            _faceMouthMgmt.Add(17, new RealFaceData(InitBArea(320, 660, 80, 120), InitBArea(690, 660, 80, 120)));
-            _faceMouthMgmt.Add(18, new RealFaceData(InitBArea(320, 660, 80, 120), InitBArea(690, 660, 80, 120)));
+            _faceMouthMgmt.Add(17, new RealFaceData(InitBArea(330, 650, 110, 130), InitBArea(700, 650, 110, 130)));
+            _faceMouthMgmt.Add(18, new RealFaceData(InitBArea(330, 650, 110, 130), InitBArea(700, 650, 110, 130)));
             _faceMouthMgmt.Add(19, new RealFaceData());
             _faceMouthMgmt.Add(20, new RealFaceData());
             _faceMouthMgmt.Add(21, new RealFaceData(InitBArea(512, 690, 90, 60, 0.6f)));
@@ -264,19 +270,19 @@ namespace RealHumanSupport
             _faceMouthMgmt.Add(25, new RealFaceData());
 
             _faceEyesMgmt.Add(0, new RealFaceData()); //
-            _faceEyesMgmt.Add(1, new RealFaceData(InitBArea(310, 470, 80, 60, 0.6f), InitBArea(700, 470, 80, 60, 0.6f), InitBArea(430, 505, 40, 40, 0.8f), InitBArea(590, 505, 40, 40, 0.8f))); //
-            _faceEyesMgmt.Add(2, new RealFaceData(InitBArea(310, 470, 80, 60, 0.8f), InitBArea(700, 470, 80, 60, 0.8f), InitBArea(430, 505, 40, 40, 0.8f), InitBArea(590, 505, 40, 40, 0.8f))); //
+            _faceEyesMgmt.Add(1, new RealFaceData(InitBArea(300, 490, 60, 60, 0.6f), InitBArea(720, 490, 60, 60, 0.6f), InitBArea(435, 505, 40, 40, 0.8f), InitBArea(585, 505, 40, 40, 0.8f))); //
+            _faceEyesMgmt.Add(2, new RealFaceData(InitBArea(300, 490, 60, 60, 0.8f), InitBArea(720,490, 60, 60, 0.8f), InitBArea(435, 505, 40, 40, 0.8f), InitBArea(585, 505, 40, 40, 0.8f))); //
             _faceEyesMgmt.Add(3, new RealFaceData());
             _faceEyesMgmt.Add(4, new RealFaceData());
             _faceEyesMgmt.Add(5, new RealFaceData());
             _faceEyesMgmt.Add(6, new RealFaceData());
-            _faceEyesMgmt.Add(7, new RealFaceData(InitBArea(310, 470, 80, 60, 0.6f), InitBArea(700, 470, 80, 60, 0.6f), InitBArea(430, 505, 40, 40, 1.3f), InitBArea(590, 505, 40, 40, 1.3f))); //
-            _faceEyesMgmt.Add(8, new RealFaceData(InitBArea(310, 470, 60, 60), InitBArea(430, 505, 40, 40, 0.8f), InitBArea(590, 505, 40, 40, 0.8f))); //
-            _faceEyesMgmt.Add(9, new RealFaceData(InitBArea(700, 470, 60, 40), InitBArea(430, 505, 40, 40, 0.8f), InitBArea(590, 505, 40, 40, 0.8f))); //
+            _faceEyesMgmt.Add(7, new RealFaceData(InitBArea(300, 490, 60, 60, 0.6f), InitBArea(720, 490, 60, 60, 0.6f), InitBArea(435, 505, 40, 40, 1.3f), InitBArea(585, 505, 40, 40, 1.3f))); //
+            _faceEyesMgmt.Add(8, new RealFaceData(InitBArea(300, 490, 60, 60), InitBArea(435, 505, 40, 40, 0.8f), InitBArea(585, 505, 40, 40, 0.8f))); //
+            _faceEyesMgmt.Add(9, new RealFaceData(InitBArea(720, 470, 60, 40), InitBArea(435, 505, 40, 40, 0.8f), InitBArea(585, 505, 40, 40, 0.8f))); //
             _faceEyesMgmt.Add(10, new RealFaceData());
             _faceEyesMgmt.Add(11, new RealFaceData()); //
-            _faceEyesMgmt.Add(12, new RealFaceData(InitBArea(310, 470, 80, 60), InitBArea(430, 505, 40, 40, 0.8f))); //
-            _faceEyesMgmt.Add(13, new RealFaceData(InitBArea(700, 470, 80, 60), InitBArea(590, 505, 40, 40, 0.8f))); //
+            _faceEyesMgmt.Add(12, new RealFaceData(InitBArea(300, 490, 60, 60), InitBArea(435, 505, 40, 40, 0.8f))); //
+            _faceEyesMgmt.Add(13, new RealFaceData(InitBArea(720, 490, 60, 60), InitBArea(585, 505, 40, 40, 0.8f))); //
 
             _self._head_areaBuffer = new ComputeBuffer(16, sizeof(float) * 6);
             _self._body_areaBuffer = new ComputeBuffer(24, sizeof(float) * 6); 
@@ -784,7 +790,7 @@ namespace RealHumanSupport
                 bodyOriginTexture = realHumanData.m_skin_body.GetTexture(realHumanData.body_bumpmap_name) as Texture2D;
 
             realHumanData.headOriginTexture = SetTextureSize(MakeReadableTexture(headOriginTexture), _self._faceExpressionFemaleBumpMap2.width, _self._faceExpressionFemaleBumpMap2.height);
-            realHumanData.bodyOriginTexture = SetTextureSize(MakeReadableTexture(bodyOriginTexture), _self._bodyStrongFemaleBumpMap2.width, _self._bodyStrongFemaleBumpMap2.height);
+            realHumanData.bodyOriginTexture = SetTextureSize(MakeReadableTexture(bodyOriginTexture), _self._bodyStrongFemale_A_BumpMap2.width, _self._bodyStrongFemale_A_BumpMap2.height);
     
             return realHumanData;
         }
@@ -870,15 +876,6 @@ namespace RealHumanSupport
             {
                 realHumanData = AllocateBumpMap(ociChar, realHumanData);
                 
-                // if (ociChar.charInfo.sex == 1) // female
-                // {
-                //     realHumanData.tf_n_height = ociChar.charInfo.objBodyBone.transform.FindLoop("cf_N_height");
-                // }
-                // else // male
-                // {
-                //     realHumanData.tf_n_height = ociChar.charInfo.objBodyBone.transform.FindLoop("cm_N_height");
-                // }
-
                 foreach (OCIChar.BoneInfo bone in ociChar.listBones)
                 {
                     if (bone.guideObject != null && bone.guideObject.transformTarget != null) {
@@ -1009,8 +1006,7 @@ namespace RealHumanSupport
                         int kernel = _self._mergeComputeShader.FindKernel("CSMain");
                         int w = 1024;
                         int h = 1024;
-                        // Texture texA;
-                        // Texture texB;
+
                         // RenderTexture 초기화 및 재사용
                         if (_self._head_rt == null || _self._head_rt.width != w || _self._head_rt.height != h)
                         {
@@ -1020,12 +1016,6 @@ namespace RealHumanSupport
                             _self._head_rt.Create();
                         }        
 
-                        // w = Mathf.Min(texA.width, texB.width);
-                        // h = Mathf.Min(texA.height, texB.height);
-
-                        //Init(w, h);
-
-                        // 영역 데이터가 변경된 경우만 업데이트
                     // 영역 데이터가 변경된 경우만 업데이트
                         if (areas.Count > 0)
                         {                         
@@ -1043,12 +1033,7 @@ namespace RealHumanSupport
                             _self._mergeComputeShader.Dispatch(kernel, Mathf.CeilToInt(w / 8f), Mathf.CeilToInt(h / 8f), 1);
 
                             // 결과를 바로 Material에 적용 (CPU로 복사 안 함)    
-                            realHumanData.m_skin_head.SetTexture(realHumanData.head_bumpmap_name, _self._head_rt);
-
-                            // Texture2D merged =  MergeRGBAlphaMaps(origin_texture, express_texture, areas);
-                            // realHumanData.m_skin_head.SetTexture(realHumanData.head_bumpmap_name, merged);
-                            // SaveAsPNG(merged, "./face_merged.png");
-                    
+                            realHumanData.m_skin_head.SetTexture(realHumanData.head_bumpmap_name, _self._head_rt);                
                         }
                     }                
                 } 
@@ -1059,36 +1044,24 @@ namespace RealHumanSupport
             }
         }
 
-            private static float CombineBySign(float a, float b)
-            {
-                bool sameSign = (a >= 0 && b >= 0) || (a < 0 && b < 0);
+        private static float GetRelativePosition(float a, float b)
+        {
+            bool sameSign = (a >= 0 && b >= 0) || (a < 0 && b < 0);
 
-                if (sameSign)
-                    return Math.Abs(Math.Abs(a) - Math.Abs(b)); // 동일 부호: 절댓값 빼기
-                else
-                    return Math.Abs(Math.Abs(a) + Math.Abs(b)); // 부호 다름: 절댓값 더하기
-            } 
-       private static void DoBodyRealEffect(OCIChar ociChar, RealHumanData realHumanData)
+            if (sameSign)
+                return Math.Abs(Math.Abs(a) - Math.Abs(b)); // 동일 부호: 절댓값 빼기
+            else
+                return Math.Abs(Math.Abs(a) + Math.Abs(b)); // 부호 다름: 절댓값 더하기
+        } 
 
-        {         
+        private static void DoBodyRealEffect(OCIChar ociChar, RealHumanData realHumanData)
+        {
             // UnityEngine.Debug.Log($">> DoBodyRealEffect {_self._ociCharMgmt.Count}, {realHumanData.m_skin_head}, {realHumanData.m_skin_body}");
             if (realHumanData.m_skin_head == null || realHumanData.m_skin_body == null)
-                return;             
-            
+                return;
+
             if (BodyBumpActive.Value)
             {   
-                Texture2D origin_texture = realHumanData.bodyOriginTexture;
-                Texture2D strong_texture = null;
-
-                if (ociChar.charInfo.sex == 1) // female
-                {
-                    strong_texture = _self._bodyStrongFemaleBumpMap2;
-                }
-                else
-                {
-                    strong_texture = _self._bodyStrongMaleBumpMap2;
-                }
-
                 List<BArea> areas = new List<BArea>();
                 PositionData lk_left_foot = GetBoneRotationFromIK(realHumanData.lk_left_foot_bone);
                 PositionData lk_right_foot = GetBoneRotationFromIK(realHumanData.lk_right_foot_bone);
@@ -1111,275 +1084,302 @@ namespace RealHumanSupport
                 PositionData fk_head= GetBoneRotationFromFK(realHumanData.fk_head_bone);
                 PositionData fk_neck= GetBoneRotationFromFK(realHumanData.fk_neck_bone);
 
-                float left_shin_bs = 0.0f;
-                float left_calf_bs = 0.0f;
-                float left_butt_bs = 0.0f;
-                float left_thigh_ft_bs = 0.0f;
-                float left_thigh_bk_bs = 0.0f;
-                float left_thigh_inside_bs = 0.0f;
-                float left_ribs_bs = 0.0f;
-                float left_neckline_bs = 0.0f;
+                Texture2D origin_texture = realHumanData.bodyOriginTexture;
+                Texture2D strong_texture = null;
 
-                float right_shin_bs = 0.0f;
-                float right_calf_bs = 0.0f;                
-                float right_butt_bs = 0.0f;
-                float right_thigh_ft_bs = 0.0f;
-                float right_thigh_bk_bs = 0.0f;
-                float right_thigh_inside_bs = 0.0f;
-                float right_ribs_bs = 0.0f;
-                float right_neckline_bs = 0.0f;
+                if (ociChar.charInfo.sex == 1) // female
+                {
+                    strong_texture = _self._bodyStrongFemale_A_BumpMap2;
+                }
+                else
+                {
+                    strong_texture = _self._bodyStrongMale_A_BumpMap2;
+                }
 
-                float spine_bs = 0.0f;
-                float ribs_bs = 0.0f;
-                
-                float neck_spine_bs = 0.0f;
-                float neckline_bs = 0.0f;                
+                float left_shin_bs = -99.99f;
+                float left_calf_bs = -99.99f;
+                float left_butt_bs = -99.99f;
+                float left_thigh_ft_bs = -99.99f;
+                float left_thigh_bk_bs = -99.99f;
+                float left_thigh_inside_bs = -99.99f;
+                float left_spine_bs = -99.99f;
+                float left_neck_bs = -99.99f;
+
+                float right_shin_bs = -99.99f;
+                float right_calf_bs = -99.99f;            
+                float right_butt_bs = -99.99f;
+                float right_thigh_ft_bs = -99.99f;
+                float right_thigh_bk_bs = -99.99f;
+                float right_thigh_inside_bs = -99.99f;
+                float right_spine_bs = -99.99f;
+                float right_neck_bs = -99.99f;
+
+                float spine_bs = -99.99f;            
+                float neck_bs = -99.99f;           
 
                 float bumpscale = 0.0f;
 
                 if (ociChar.oiCharInfo.enableFK) {
      
-                // 허벅지 왼쪽
+            // 허벅지 왼쪽
                     if (fk_left_thigh._front > 1.0f)
                     {   // 뒷방향
                         bumpscale = Math.Min(Remap(fk_left_thigh._front, 0.0f, 120.0f, 0.1f, 1.0f), 1.0f);                     
-                        left_butt_bs += bumpscale * 0.8f;
-                        left_thigh_bk_bs += bumpscale * 0.8f;                                     
+                        left_butt_bs += bumpscale * 0.7f;
+                        left_thigh_bk_bs += bumpscale * 0.7f;                         
                     } 
                     else
                     {   // 앞방향
                         bumpscale = Math.Min(Remap(Math.Abs(fk_left_thigh._front), 0.0f, 120.0f, 0.0f, 1.0f), 1.0f);
-                        if (fk_left_thigh._front < -130.0f)
-                        {                            
-                            left_thigh_bk_bs += bumpscale * 1.0f;                 
-                        }                        
-                        left_thigh_inside_bs += bumpscale * 0.8f;
-                        left_thigh_ft_bs += bumpscale * 0.8f;                                                                      
+                        left_thigh_ft_bs += bumpscale * 0.7f; 
+                        if (fk_left_thigh._front < -70.0f) {                            
+                            // 내전근 강조 
+                            left_thigh_bk_bs += Math.Min(Remap(Math.Abs(fk_left_thigh._front), 70.0f, 150.0f, 0.5f, 1.0f), 1.0f);
+
+                            // 허벅지 open 여부 확인
+                        }
                     }
-                // 허벅지 오른쪽
+            // 허벅지 오른쪽
                     if (fk_right_thigh._front > 1.0f)
                     {   // 뒷방향      
                         bumpscale = Math.Min(Remap(fk_right_thigh._front, 0.0f, 120.0f, 0.1f, 1.0f), 1.0f);
-                        right_butt_bs += bumpscale * 0.8f;
-                        right_thigh_bk_bs += bumpscale * 0.8f; 
+                        right_butt_bs += bumpscale * 0.7f;
+                        right_thigh_bk_bs += bumpscale * 0.7f; 
                     }  
                     else
                     {   // 앞방향
                         bumpscale = Math.Min(Remap(Math.Abs(fk_right_thigh._front), 0.0f, 120.0f, 0.0f, 1.0f), 1.0f);
-                        if (fk_right_thigh._front < -130.0f)
-                        {                            
-                            right_thigh_bk_bs += bumpscale * 1.0f; 
-                        } 
-                        right_thigh_inside_bs += bumpscale * 0.8f;                       
-                        right_thigh_ft_bs += bumpscale * 0.8f;  
+                        right_thigh_ft_bs += bumpscale * 0.7f;
+                        if (fk_right_thigh._front < -70.0f) {      
+                            // 내전근 강조                      
+                            right_thigh_bk_bs += Math.Min(Remap(Math.Abs(fk_right_thigh._front), 70.0f, 150.0f, 0.5f, 1.0f), 1.0f);
+
+                            // 허벅지 open 여부 확인
+                        }
                     }
                     
-                // 무릎 왼쪽
-                    if (fk_left_knee._front > 1.0f)
+            // 무릎 왼쪽
+                    if (fk_left_knee._front >= 0.0f)
                     {   // 뒷방향       
-                        float strong = CombineBySign(fk_left_thigh._front, fk_left_knee._front);
-                        bumpscale = Math.Min(Remap(strong, 0.0f, 90.0f, 0.1f, 1.0f), 1.0f);
-                        left_thigh_ft_bs += bumpscale * 0.4f;
-                        left_thigh_bk_bs += bumpscale * 0.4f;                                                                     
-                    } else
-                    {
-                        left_thigh_inside_bs += bumpscale * 0.3f;                        
+                        float angle = GetRelativePosition(fk_left_thigh._front, fk_left_knee._front);
+                        bumpscale = Math.Min(Remap(angle, 0.0f, 90.0f, 0.1f, 1.0f), 1.0f);
+                        left_butt_bs += bumpscale * 0.3f;
+                        left_thigh_bk_bs += bumpscale * 0.3f;
+                        left_thigh_ft_bs += bumpscale * 0.3f;
+                        
+                        if (angle > 90)  {
+                            bumpscale = Math.Min(Remap(angle, 90.0f, 130.0f, 0.5f, 1.0f), 1.0f);
+                            left_shin_bs += bumpscale * 0.8f;
+                            left_thigh_inside_bs += bumpscale * 0.8f;
+                        }
                     }
-                // 무릎 오른쪽
-                    if (fk_right_knee._front > 1.0f)
+            // 무릎 오른쪽
+                    if (fk_right_knee._front > 0.0f)
                     {   // 뒷방향      
-                        float strong = CombineBySign(fk_right_thigh._front, fk_right_knee._front);
-                        bumpscale = Math.Min(Remap(strong, 0.0f, 90.0f, 0.1f, 1.0f), 1.0f);
-                        right_thigh_ft_bs += bumpscale * 0.4f;
-                        right_thigh_bk_bs += bumpscale * 0.4f;                         
-                    }  else
-                    {
-                        right_thigh_inside_bs += bumpscale * 0.3f;                        
+                        float angle = GetRelativePosition(fk_right_thigh._front, fk_right_knee._front);
+                        bumpscale = Math.Min(Remap(angle, 0.0f, 90.0f, 0.1f, 1.0f), 1.0f);
+                        right_butt_bs += bumpscale * 0.3f;                        
+                        right_thigh_ft_bs += bumpscale * 0.3f;
+                        right_thigh_bk_bs += bumpscale * 0.3f;
+
+                        if (angle > 90)  {
+                            bumpscale = Math.Min(Remap(angle, 90.0f, 130.0f, 0.5f, 1.0f), 1.0f);
+                            right_shin_bs += bumpscale * 0.8f;
+                            right_thigh_inside_bs += bumpscale * 0.8f;
+                        }
                     }
 
-                // 허리
-                    if (fk_spine02._front > 1.0f)
+            // 발목
+                    if (ociChar.oiCharInfo.enableIK) {          
+                        if (lk_left_foot._front > 0.0f)
+                        {   // 뒷방향
+                            bumpscale = Math.Min(Remap(lk_left_foot._front, 0.0f, 60.0f, 0.1f, 1f), 1f);
+                            left_shin_bs += bumpscale * 0.5f;
+                            left_thigh_ft_bs += bumpscale * 0.2f;
+                            left_thigh_bk_bs += bumpscale * 0.15f;
+                            left_thigh_inside_bs += bumpscale * 0.2f;
+                            left_calf_bs += bumpscale * 1.0f;
+
+                            // TODO
+                            // 발목 강조                        
+                        }
+
+                        if (lk_right_foot._front > 0.0f)
+                        {   // 뒷방향         
+                            bumpscale = Math.Min(Remap(lk_right_foot._front, 0.0f, 60.0f, 0.1f, 1f), 1f);
+                            right_shin_bs += bumpscale * 0.5f;
+                            right_thigh_ft_bs += bumpscale * 0.2f;
+                            right_thigh_bk_bs += bumpscale * 0.15f;
+                            right_thigh_inside_bs += bumpscale * 0.2f;
+                            right_calf_bs += bumpscale * 1.0f;                                           
+                            // TODO
+                            // 발목 강조
+                        }
+                    } else if (ociChar.oiCharInfo.enableFK)
                     {
-                        bumpscale = Math.Min(Remap(fk_spine02._front, 0.0f, 90.0f, 0.0f, 1.0f), 1.0f);
-                        spine_bs += bumpscale * 1.0f;
+                        if (fk_left_foot._front > 0.0f)
+                        {   // 뒷방향       
+                            float angle = GetRelativePosition(fk_left_knee._front, fk_left_foot._front);
+                            bumpscale = Math.Min(Remap(angle, 0.0f, 60.0f, 0.1f, 1f), 1f);
+                            left_shin_bs += bumpscale * 0.4f;
+                            left_thigh_ft_bs += bumpscale * 0.3f;
+                            left_thigh_bk_bs += bumpscale * 0.15f;
+                            left_calf_bs += bumpscale * 1.0f;                           
+                            // TODO
+                            // 발목 강조                  
+                        }
+
+                        if (fk_right_foot._front > 0.0f)
+                        {   // 뒷방향      
+                            float angle = GetRelativePosition(fk_right_knee._front, fk_right_foot._front);
+                            bumpscale = Math.Min(Remap(angle, 0.0f, 60.0f, 0.1f, 1f), 1f);
+                            right_shin_bs += bumpscale * 0.4f;
+                            right_thigh_ft_bs += bumpscale * 0.3f;
+                            right_thigh_bk_bs += bumpscale * 0.15f;
+                            right_calf_bs += bumpscale * 1.0f;                 
+                            // TODO
+                            // 발목 강조
+                        }
+                    }                
+
+            // 허리
+                    if (fk_spine02._front > 1.0f)
+                    { 
+                        // 앞으로 숙이기
+                        bumpscale = Math.Min(Remap(fk_spine02._front, 0.0f, 120.0f, 0.0f, 1.0f), 1.0f);
+                        spine_bs = -bumpscale * 1.0f;
                     } 
                     else
-                    {
-                        bumpscale = Math.Min(Remap(Math.Abs(fk_spine02._front), 0.0f, 90.0f, 0.0f, 1.0f), 1.0f);
-                        ribs_bs += bumpscale * 0.80f;
+                    {   // 뒤로 숙이기
+                        bumpscale = Math.Min(Remap(Math.Abs(fk_spine02._front), 0.0f, 70.0f, 0.0f, 1.0f), 1.0f);
+                        spine_bs = bumpscale * 0.8f;
                     }
 
                     if (fk_spine02._side > 1.0f)
                     {   // 왼쪽 기울기                                            
                         bumpscale = Math.Min(Remap(fk_spine02._side, 0.0f, 70.0f, 0.0f, 1.0f), 1.0f);
-                        left_ribs_bs += bumpscale * 0.3f;                  
+                        if (left_spine_bs != -99.99f)
+                            left_spine_bs += -bumpscale * 0.3f;
+                        else
+                            left_spine_bs = -bumpscale * 0.3f;           
                     } 
                     else
                     {   // 오른쪽 기울기
                         bumpscale = Math.Min(Remap(Math.Abs(fk_spine02._side), 0.0f, 70.0f, 0.0f, 1.0f), 1.0f);
-                        right_ribs_bs += bumpscale * 0.3f;    
+                        if (right_spine_bs != -99.99f)
+                            right_spine_bs += -bumpscale * 0.3f;    
+                        else
+                            right_spine_bs = -bumpscale * 0.3f; 
                     }
 
-                // 목
+            // 목
                     if (fk_head._front > 1.0f)
                     {   // 앞으로 숙이기                
-                        float strong = CombineBySign(fk_neck._front, fk_head._front);
-                        bumpscale = Math.Min(Remap(strong, 0.0f, 70.0f, 0.0f, 1.0f), 1.0f);
-                        neck_spine_bs += bumpscale * 0.9f;
+                        float angle = GetRelativePosition(fk_neck._front, fk_head._front);
+                        bumpscale = Math.Min(Remap(angle, 0.0f, 70.0f, 0.0f, 1.0f), 1.0f);
+                        neck_bs = -bumpscale * 0.9f;
                     } else
                     {   // 뒤로 숙이기
-                        float strong = CombineBySign(fk_neck._front, fk_head._front);
-                        bumpscale = Math.Min(Remap(strong, 0.0f, 50.0f, 0.0f, 1.0f), 1.0f);
-                        neckline_bs += bumpscale * 0.9f;    
+                        float angle = GetRelativePosition(fk_neck._front, fk_head._front);
+                        bumpscale = Math.Min(Remap(angle, 0.0f, 50.0f, 0.0f, 1.0f), 1.0f);
+                        neck_bs = bumpscale * 0.9f;    
                     }
 
                     if (fk_head._side > 1.0f)
                     {   // 왼쪽 기울기            
                         bumpscale = Math.Min(Remap(fk_head._side, 0.0f, 90.0f, 0.0f, 1.0f), 1.0f);    
-                        left_neckline_bs += bumpscale * 0.3f;
+                        left_neck_bs += bumpscale * 0.3f;
                     } else
                     {   // 오른쪽 기울기
                         bumpscale = Math.Min(Remap(Math.Abs(fk_head._side), 0.0f, 90.0f, 0.0f, 1.0f), 1.0f);                 
-                        right_neckline_bs += bumpscale * 0.3f;                             
+                        right_neck_bs += bumpscale * 0.3f;                             
                     } 
                 }
                 
-                if (ociChar.oiCharInfo.enableIK) {          
-                    if (lk_left_foot._front > 1.0f)
-                    {   // 뒷방향
-                        bumpscale = Math.Min(Remap(lk_left_foot._front, 0.0f, 60.0f, 0.1f, 1f), 1f);
-                        left_shin_bs += bumpscale * 1.0f;
-                        left_thigh_ft_bs += bumpscale * 0.2f;
-                        left_butt_bs += bumpscale * 0.3f;
-                        left_thigh_bk_bs += bumpscale * 0.2f;
-                        left_calf_bs += bumpscale * 1.0f;
-                        // TODO
-                        // 발목 강조                        
-                    }
-
-                    if (lk_right_foot._front > 1.0f)
-                    {   // 뒷방향         
-                        bumpscale = Math.Min(Remap(lk_right_foot._front, 0.0f, 60.0f, 0.1f, 1f), 1f);
-                        right_shin_bs += bumpscale * 1.0f;
-                        right_thigh_ft_bs += bumpscale * 0.2f;
-                        right_butt_bs += bumpscale * 0.3f;
-                        right_thigh_bk_bs += bumpscale * 0.2f;
-                        right_calf_bs += bumpscale * 1.0f;                                           
-                        // TODO
-                        // 발목 강조
-                    } 
-
-                } else if (ociChar.oiCharInfo.enableFK)
+          
+            // 가운데
+                if (neck_bs >= 0.0f)
                 {
-                    if (fk_left_foot._front > 1.0f)
-                    {   // 뒷방향       
-                        float strong = CombineBySign(fk_left_knee._front, fk_left_foot._front);
-                        bumpscale = Math.Min(Remap(strong, 0.0f, 60.0f, 0.1f, 1f), 1f);
-                        left_shin_bs += bumpscale * 1.0f;
-                        left_thigh_ft_bs += bumpscale * 0.2f;
-                        left_butt_bs += bumpscale * 0.3f;
-                        left_thigh_bk_bs += bumpscale * 0.2f;
-                        left_calf_bs += bumpscale * 1.0f;                           
-                        // TODO
-                        // 발목 강조                  
-                    }
+                    areas.Add(InitBArea(260, 100, 140, 90, Math.Min(Math.Abs(neck_bs), 2.0f))); // 목선
+                } else {
+                    areas.Add(InitBArea(770, 200, 140, 90, Math.Min(Math.Abs(neck_bs), 2.0f))); // 척추
+                }
 
-                    if (fk_right_foot._front > 1.0f)
-                    {   // 뒷방향      
-                        float strong = CombineBySign(fk_right_knee._front, fk_right_foot._front);
-                        bumpscale = Math.Min(Remap(strong, 0.0f, 60.0f, 0.1f, 1f), 1f);
-                        right_shin_bs += bumpscale * 1.0f;
-                        right_thigh_ft_bs += bumpscale * 0.2f;
-                        right_butt_bs += bumpscale * 0.3f;
-                        right_thigh_bk_bs += bumpscale * 0.2f;
-                        right_calf_bs += bumpscale * 1.0f;                 
-                        // TODO
-                        // 발목 강조
-                    }
+                if (spine_bs >= 0.0f)
+                {
+                    areas.Add(InitBArea(260, 530, 250, 200, Math.Min(Math.Abs(spine_bs), 2.0f))); // 갈비                    
+                } else {
+                    areas.Add(InitBArea(770, 260, 220, 240, Math.Min(Math.Abs(spine_bs), 2.0f))); // 척추
+                }
+
+            // 왼쪽 강조
+                if (left_neck_bs != -99.99f)
+                {
+                    areas.Add(InitBArea(220, 90, 40, 80, Math.Min(left_neck_bs, 2.0f))); 
+                }
+                if (left_spine_bs != -99.99f)
+                {
+                    areas.Add(InitBArea(150, 520, 150, 160, Math.Min(left_spine_bs, 2.0f)));   
                 }                
-
-                if (neckline_bs != 0.0f)
-                {   
-                    areas.Add(InitBArea(260, 100, 140, 90, Math.Min(neckline_bs, 2.0f))); // 목선
+                if (left_thigh_ft_bs != -99.99f)
+                {
+                    areas.Add(InitBArea(365, 970, 100, 210, Math.Min(left_thigh_ft_bs, 2.0f))); // 앞 허벅지        
+                }                                                       
+                if (left_thigh_inside_bs != -99.99f)
+                {
+                    areas.Add(InitBArea(330, 960, 60, 120, Math.Min(left_thigh_inside_bs, 2.0f))); // 앞 허벅지 인쪽
+                }                 
+                if (left_shin_bs != -99.99f)
+                {
+                    areas.Add(InitBArea(400, 1450, 160, 300, Math.Min(left_shin_bs, 2.0f))); // 앞 정강이                                        
                 }
-                if (neck_spine_bs != 0.0f)
-                {
-                    areas.Add(InitBArea(775, 180, 80, 120, Math.Min(neck_spine_bs, 2.0f)));
-                }
-                if (left_neckline_bs != 0.0f)
-                {
-                    areas.Add(InitBArea(220, 120, 40, 40, Math.Min(left_neckline_bs, 2.0f))); 
-                }
-                if (right_neckline_bs != 0.0f)
-                {
-                    areas.Add(InitBArea(300, 120, 40, 40, Math.Min(right_neckline_bs, 2.0f)));
-                }                    
-                if (spine_bs != 0.0f)
-                {
-                    areas.Add(InitBArea(775, 250, 80, 200, Math.Min(spine_bs, 2.0f))); // 척추
-                }
-                if (ribs_bs != 0.0f)
-                {   
-                    areas.Add(InitBArea(250, 560, 240, 220, Math.Min(ribs_bs, 2.0f))); // 갈비
-                }
-                if (left_ribs_bs != 0.0f)
-                {
-                    areas.Add(InitBArea(100, 500, 80, 240, Math.Min(left_ribs_bs, 2.0f)));   
-                }                
-                if (right_ribs_bs != 0.0f)
-                {
-                    areas.Add(InitBArea(420, 500, 80, 240, Math.Min(right_ribs_bs, 2.0f)));
-                } 
-
-                if (left_thigh_inside_bs != 0.0f)
-                {
-                    areas.Add(InitBArea(360, 910, 90, 160, Math.Min(left_thigh_inside_bs, 2.0f))); // 앞 허벅지 인쪽
-                } 
-                if (right_thigh_inside_bs != 0.0f)
-                {
-                    areas.Add(InitBArea(165, 910, 90, 160, Math.Min(right_thigh_inside_bs, 2.0f))); // 앞 허벅지 안쪽                                
-                } 
-
-                if (left_thigh_ft_bs != 0.0f)
-                {
-                    areas.Add(InitBArea(400, 950, 110, 280, Math.Min(left_thigh_ft_bs, 2.0f))); // 앞 허벅지        
-                }
-                if (left_thigh_bk_bs != 0.0f)
+                if (left_thigh_bk_bs != -99.99f)
                 { 
-                    areas.Add(InitBArea(660, 1000, 110, 260, Math.Min(left_thigh_bk_bs, 2.0f))); // 뒷 허벅지                        
-                }                                                         
-                if (left_shin_bs != 0.0f)
+                    areas.Add(InitBArea(660, 1030, 100, 160, Math.Min(left_thigh_bk_bs, 2.0f))); // 뒷 허벅지                        
+                }                                      
+                if (left_butt_bs != -99.99f)
                 {
-                    areas.Add(InitBArea(400, 1450, 110, 230, Math.Min(left_shin_bs, 2.0f))); // 앞 정강이                                        
-                }                    
-                if (left_butt_bs != 0.0f)
-                {
-                    areas.Add(InitBArea(680, 840, 90, 90, Math.Min(left_butt_bs, 2.0f))); // 뒷 엉덩이                                                
+                    areas.Add(InitBArea(650, 850, 80, 90, Math.Min(left_butt_bs, 2.0f))); // 뒷 엉덩이                                                
                 }        
-                if (left_calf_bs != 0.0f)
+                if (left_calf_bs != -99.99f)
                 {
-                    areas.Add(InitBArea(660, 1460, 120, 160, Math.Min(left_calf_bs, 2.0f))); // 뒷 종아리 강조                                                     
+                    areas.Add(InitBArea(650, 1230, 60, 80, Math.Min(right_calf_bs, 2.0f))); // 뒷 무릎 강조
+                    areas.Add(InitBArea(670, 1420, 100, 140, Math.Min(left_calf_bs, 2.0f))); // 뒷 종아리 강조                                                     
                 }     
 
-                if (right_thigh_ft_bs != 0.0f)
+            // 오른쪽 강조
+                if (right_neck_bs != -99.99f)
                 {
-                    areas.Add(InitBArea(120, 950, 110, 280, Math.Min(right_thigh_ft_bs, 2.0f))); // 앞 허벅지                         
+                    areas.Add(InitBArea(300, 90, 40, 80, Math.Min(right_neck_bs, 2.0f)));
+                }   
+                if (right_spine_bs != -99.99f)
+                {
+                    areas.Add(InitBArea(370, 520, 150, 160, Math.Min(right_spine_bs, 2.0f)));
                 }
-                if (right_thigh_bk_bs != 0.0f)
+                if (right_thigh_ft_bs != -99.99f)
                 {
-                    areas.Add(InitBArea(910, 1000, 110, 260, Math.Min(right_thigh_bk_bs, 2.0f))); // 뒷쪽 허벅지
+                    areas.Add(InitBArea(145, 970, 100, 210, Math.Min(right_thigh_ft_bs, 2.0f))); // 앞 허벅지                         
+                }
+                if (right_thigh_inside_bs != -99.99f)
+                {
+                    areas.Add(InitBArea(190, 960, 60, 120, Math.Min(right_thigh_inside_bs, 2.0f))); // 앞 허벅지 안쪽                                
+                } 
+                if (right_shin_bs != -99.99f)
+                {
+                    areas.Add(InitBArea(120, 1450, 160, 300, Math.Min(right_shin_bs, 2.0f))); // 앞 정강이                         
+                }
+                if (right_thigh_bk_bs != -99.99f)
+                {
+                    areas.Add(InitBArea(900, 1030, 100, 140, Math.Min(right_thigh_bk_bs, 2.0f))); // 뒷 허벅지
                 }                    
-                if (right_shin_bs != 0.0f)
+                if (right_butt_bs != -99.99f)
                 {
-                    areas.Add(InitBArea(120, 1450, 110, 230, Math.Min(right_shin_bs, 2.0f))); // 앞 정강이                            
+                    areas.Add(InitBArea(920, 850, 80, 90, Math.Min(right_butt_bs, 2.0f))); // 뒷 엉덩이                        
                 }
-                if (right_butt_bs != 0.0f)
+                if (right_calf_bs != -99.99f)
                 {
-                    areas.Add(InitBArea(900, 840, 90, 90, Math.Min(right_butt_bs, 2.0f))); // 뒷쪽 엉덩이                        
-                }
-                if (right_calf_bs != 0.0f)
-                {
-                    areas.Add(InitBArea(880, 1460, 120, 160, Math.Min(right_calf_bs, 2.0f))); // 뒷쪽 종아리 강조                                                         
+                    areas.Add(InitBArea(920, 1230, 60, 80, Math.Min(right_calf_bs, 2.0f))); // 뒷 무릎 강조
+                    areas.Add(InitBArea(890, 1420, 100, 140, Math.Min(right_calf_bs, 2.0f))); // 뒷 종아리 강조                                                         
                 }
 
                 realHumanData.prev_lk_left_foot_rot = lk_left_foot._q;
@@ -1480,31 +1480,35 @@ public static Texture2D RenderTextureToTexture2D(RenderTexture rt)
                 ObjectCtrlInfo objectCtrlInfo = Studio.Studio.GetCtrlInfo(_node);   
                 OCIChar ociChar = objectCtrlInfo as OCIChar;
 
-                _self._selectedOciChar = ociChar;
-
-                if (ociChar != null && _self._ociCharMgmt.TryGetValue(ociChar.GetHashCode(), out var realHumanData))
-                {                    
-                    if (realHumanData.coroutine != null)
-                    {
-                        ociChar.charInfo.StopCoroutine(realHumanData.coroutine);
-                        ociChar.charInfo.StartCoroutine(ExecuteAfterFrame(ociChar, realHumanData));
-                    }                    
-                } 
-                else
+                if (ociChar != null)
                 {
-                    RealHumanData realHumanData2 = new RealHumanData();
-                    realHumanData2 = InitRealHumanData(ociChar, realHumanData2);
+                    _self._selectedOciChar = ociChar;
 
-                    if (realHumanData2 != null)
+                    if (_self._ociCharMgmt.TryGetValue(ociChar.GetHashCode(), out var realHumanData))
+                    {                    
+                        if (realHumanData.coroutine != null)
+                        {
+                            ociChar.charInfo.StopCoroutine(realHumanData.coroutine);
+                            ociChar.charInfo.StartCoroutine(ExecuteAfterFrame(ociChar, realHumanData));
+                        }                    
+                    } 
+                    else
                     {
-                        realHumanData2.coroutine = ociChar.charInfo.StartCoroutine(_self.Routine(realHumanData2));                    
-                        _self._ociCharMgmt.Add(ociChar.GetHashCode(), realHumanData2);
-                        ociChar.charInfo.StartCoroutine(ExecuteAfterFrame(ociChar, realHumanData2));
-                    } else
-                    {
-                        Logger.LogMessage($"Body skin not has bumpmap2");
-                    }                    
+                        RealHumanData realHumanData2 = new RealHumanData();
+                        realHumanData2 = InitRealHumanData(ociChar, realHumanData2);
+
+                        if (realHumanData2 != null)
+                        {
+                            realHumanData2.coroutine = ociChar.charInfo.StartCoroutine(_self.Routine(realHumanData2));                    
+                            _self._ociCharMgmt.Add(ociChar.GetHashCode(), realHumanData2);
+                            ociChar.charInfo.StartCoroutine(ExecuteAfterFrame(ociChar, realHumanData2));
+                        } else
+                        {
+                            Logger.LogMessage($"Body skin not has bumpmap2");
+                        }                    
+                    }    
                 }
+                
 
                 return true;
             }
@@ -1857,7 +1861,6 @@ public static Texture2D RenderTextureToTexture2D(RenderTexture rt)
         
         public RealHumanData()
         {
-            
         }        
     }
 
@@ -1870,6 +1873,4 @@ public static Texture2D RenderTextureToTexture2D(RenderTexture rt)
         public float Strong; // G/B 방향 강조
         public float BumpBooster; // 범프 세기 강조
     }
-
-
 }

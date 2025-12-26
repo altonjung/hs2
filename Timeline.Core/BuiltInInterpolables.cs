@@ -77,119 +77,119 @@ namespace Timeline
 #endif
 
         private static void Global()
-                {
-                        Studio.CameraControl.CameraData globalCameraData = (Studio.CameraControl.CameraData)Studio.Studio.Instance.cameraCtrl.GetPrivate("cameraData");
+        {
+            Studio.CameraControl.CameraData globalCameraData = (Studio.CameraControl.CameraData)Studio.Studio.Instance.cameraCtrl.GetPrivate("cameraData");
 
-                        Timeline.AddInterpolableModel(new InterpolableModel(
-                                owner: Timeline._ownerId,
-                                id: "cameraOPos",
-                                parameter: null,
-                                name: "Camera Origin Position",
-                                interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => globalCameraData.pos = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor),
-                                interpolateAfter: null,
-                                isCompatibleWithTarget: (oci) => true,
-                                getValue: (oci, parameter) => globalCameraData.pos,
-                                readValueFromXml: (parameter, node) => node.ReadVector3("value"),
-                                writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (Vector3)o),
-                                useOciInHash: false
-                        ));
-                        Timeline.AddInterpolableModel(new InterpolableModel(
-                                owner: Timeline._ownerId,
-                                id: "cameraORot",
-                                parameter: null,
-                                name: "Camera Origin Rotation",
-                                interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => globalCameraData.rotate = Quaternion.SlerpUnclamped((Quaternion)leftValue, (Quaternion)rightValue, factor).eulerAngles,
-                                interpolateAfter: null,
-                                isCompatibleWithTarget: (oci) => true,
-                                getValue: (oci, parameter) => Quaternion.Euler(globalCameraData.rotate),
-                                readValueFromXml: (parameter, node) => node.ReadQuaternion("value"),
-                                writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (Quaternion)o),
-                                useOciInHash: false
-                        ));
-                        Timeline.AddInterpolableModel(new InterpolableModel(
-                                owner: Timeline._ownerId,
-                                id: "cameraOZoom",
-                                parameter: null,
-                                name: "Camera Zoom",
-                                interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => globalCameraData.distance = new Vector3(x: globalCameraData.distance.x, y: globalCameraData.distance.y, z: Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor)),
-                                interpolateAfter: null,
-                                isCompatibleWithTarget: (oci) => true,
-                                getValue: (oci, parameter) => globalCameraData.distance.z,
-                                readValueFromXml: (parameter, node) => node.ReadFloat("value"),
-                                writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o),
-                                useOciInHash: false
-                        ));
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "cameraOPos",
+                    parameter: null,
+                    name: "Camera Origin Position",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => globalCameraData.pos = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor),
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => true,
+                    getValue: (oci, parameter) => globalCameraData.pos,
+                    readValueFromXml: (parameter, node) => node.ReadVector3("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (Vector3)o),
+                    useOciInHash: false
+            ));
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "cameraORot",
+                    parameter: null,
+                    name: "Camera Origin Rotation",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => globalCameraData.rotate = Quaternion.SlerpUnclamped((Quaternion)leftValue, (Quaternion)rightValue, factor).eulerAngles,
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => true,
+                    getValue: (oci, parameter) => Quaternion.Euler(globalCameraData.rotate),
+                    readValueFromXml: (parameter, node) => node.ReadQuaternion("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (Quaternion)o),
+                    useOciInHash: false
+            ));
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "cameraOZoom",
+                    parameter: null,
+                    name: "Camera Zoom",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => globalCameraData.distance = new Vector3(x: globalCameraData.distance.x, y: globalCameraData.distance.y, z: Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor)),
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => true,
+                    getValue: (oci, parameter) => globalCameraData.distance.z,
+                    readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o),
+                    useOciInHash: false
+            ));
 
-                        Timeline.AddInterpolableModel(new InterpolableModel(
-                                owner: Timeline._ownerId,
-                                id: "cameraFOV",
-                                parameter: null,
-                                name: "Camera FOV",
-                                interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => Studio.Studio.Instance.cameraCtrl.fieldOfView = Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor),
-                                interpolateAfter: null,
-                                isCompatibleWithTarget: (oci) => true,
-                                getValue: (oci, parameter) => Studio.Studio.Instance.cameraCtrl.fieldOfView,
-                                readValueFromXml: (parameter, node) => node.ReadFloat("value"),
-                                writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o),
-                                useOciInHash: false
-                        ));
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "cameraFOV",
+                    parameter: null,
+                    name: "Camera FOV",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => Studio.Studio.Instance.cameraCtrl.fieldOfView = Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor),
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => true,
+                    getValue: (oci, parameter) => Studio.Studio.Instance.cameraCtrl.fieldOfView,
+                    readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o),
+                    useOciInHash: false
+            ));
 
-                        Timeline.AddInterpolableModel(new InterpolableModel(
-                                owner: Timeline._ownerId,
-                                id: "cameraPos",
-                                parameter: null,
-                                name: "Camera Position",
-                                interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
-                                {
-                                        Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor);
-                                        UpdateCameraData(Studio.Studio.Instance.cameraCtrl.mainCmaera.transform);
-                                },
-                                interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor),
-                                isCompatibleWithTarget: (oci) => true,
-                                getValue: (oci, parameter) => Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position,
-                                readValueFromXml: (parameter, node) => node.ReadVector3("value"),
-                                writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (Vector3)o),
-                                useOciInHash: false
-                        ));
-                        Timeline.AddInterpolableModel(new InterpolableModel(
-                                owner: Timeline._ownerId,
-                                id: "cameraRot",
-                                parameter: null,
-                                name: "Camera Rotation",
-                                interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
-                                {
-                                        Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.rotation = Quaternion.SlerpUnclamped((Quaternion)leftValue, (Quaternion)rightValue, factor);
-                                        UpdateCameraData(Studio.Studio.Instance.cameraCtrl.mainCmaera.transform);
-                                },
-                                interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.rotation = Quaternion.SlerpUnclamped((Quaternion)leftValue, (Quaternion)rightValue, factor),
-                                isCompatibleWithTarget: (oci) => true,
-                                getValue: (oci, parameter) => Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.rotation,
-                                readValueFromXml: (parameter, node) => node.ReadQuaternion("value"),
-                                writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (Quaternion)o),
-                                useOciInHash: false
-                        ));
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "cameraPos",
+                    parameter: null,
+                    name: "Camera Position",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                    {
+                        Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor);
+                        UpdateCameraData(Studio.Studio.Instance.cameraCtrl.mainCmaera.transform);
+                    },
+                    interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor),
+                    isCompatibleWithTarget: (oci) => true,
+                    getValue: (oci, parameter) => Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position,
+                    readValueFromXml: (parameter, node) => node.ReadVector3("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (Vector3)o),
+                    useOciInHash: false
+            ));
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "cameraRot",
+                    parameter: null,
+                    name: "Camera Rotation",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                    {
+                        Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.rotation = Quaternion.SlerpUnclamped((Quaternion)leftValue, (Quaternion)rightValue, factor);
+                        UpdateCameraData(Studio.Studio.Instance.cameraCtrl.mainCmaera.transform);
+                    },
+                    interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.rotation = Quaternion.SlerpUnclamped((Quaternion)leftValue, (Quaternion)rightValue, factor),
+                    isCompatibleWithTarget: (oci) => true,
+                    getValue: (oci, parameter) => Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.rotation,
+                    readValueFromXml: (parameter, node) => node.ReadQuaternion("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (Quaternion)o),
+                    useOciInHash: false
+            ));
 
-                        void UpdateCameraData(Transform cameraTransform)
-                        {
-                                globalCameraData.rotate = cameraTransform.localRotation.eulerAngles;
-                                globalCameraData.pos = -(cameraTransform.localRotation * globalCameraData.distance - cameraTransform.localPosition);
+            void UpdateCameraData(Transform cameraTransform)
+            {
+                globalCameraData.rotate = cameraTransform.localRotation.eulerAngles;
+                globalCameraData.pos = -(cameraTransform.localRotation * globalCameraData.distance - cameraTransform.localPosition);
 
-                        }
+            }
 
-                        Timeline.AddInterpolableModel(new InterpolableModel(
-                                owner: Timeline._ownerId,
-                                id: "timeScale",
-                                parameter: null,
-                                name: "Time Scale",
-                                interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => Time.timeScale = Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor),
-                                interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => Time.timeScale = Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor),
-                                isCompatibleWithTarget: (oci) => true,
-                                getValue: (oci, parameter) => Time.timeScale,
-                                readValueFromXml: (parameter, node) => node.ReadFloat("value"),
-                                writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o),
-                                useOciInHash: false
-                        ));
-                }
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "timeScale",
+                    parameter: null,
+                    name: "Time Scale",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => Time.timeScale = Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor),
+                    interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => Time.timeScale = Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor),
+                    isCompatibleWithTarget: (oci) => true,
+                    getValue: (oci, parameter) => Time.timeScale,
+                    readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o),
+                    useOciInHash: false
+            ));
+        }
 
         private static void EnabledDisabled()
         {
@@ -217,9 +217,9 @@ namespace Timeline
             Timeline.AddInterpolableModel(new InterpolableModel(
                     owner: Timeline._ownerId,
                     id: "guideObjectPos",
-                    name: "Selected GuideObject Pos",                          
+                    name: "Selected GuideObject Pos",
                     interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((GuideObject)parameter).changeAmount.pos = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor),
-                    interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => ((GuideObject)parameter).changeAmount.pos = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor),                                
+                    interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => ((GuideObject)parameter).changeAmount.pos = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor),
                     isCompatibleWithTarget: oci => oci != null,
 #if FEATURE_SOUND
                     getValue: (oci, parameter) => Vector3RoundTo5Decimals(((GuideObject)parameter).changeAmount.pos),
@@ -247,7 +247,7 @@ namespace Timeline
                     id: "guideObjectRot",
                     name: "Selected GuideObject Rot",
                     interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((GuideObject)parameter).changeAmount.rot = Quaternion.SlerpUnclamped((Quaternion)leftValue, (Quaternion)rightValue, factor).eulerAngles,
-                    interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => ((GuideObject)parameter).changeAmount.rot = Quaternion.SlerpUnclamped((Quaternion)leftValue, (Quaternion)rightValue, factor).eulerAngles,                
+                    interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => ((GuideObject)parameter).changeAmount.rot = Quaternion.SlerpUnclamped((Quaternion)leftValue, (Quaternion)rightValue, factor).eulerAngles,
                     isCompatibleWithTarget: (oci) => oci != null,
 #if FEATURE_SOUND
                     getValue: (oci, parameter) => QuaternionRoundTo5Decimals(Quaternion.Euler(((GuideObject)parameter).changeAmount.rot)),
@@ -276,7 +276,6 @@ namespace Timeline
                     name: "Selected GuideObject Scl",
                     interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((GuideObject)parameter).changeAmount.scale = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor),
                     interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => ((GuideObject)parameter).changeAmount.scale = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor),
- 
                     isCompatibleWithTarget: (oci) => oci != null,
 #if FEATURE_SOUND
                     getValue: (oci, parameter) => Vector3RoundTo5Decimals(((GuideObject)parameter).changeAmount.scale),
@@ -722,6 +721,32 @@ namespace Timeline
                     writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (byte)o)));
 #endif
 
+#if AISHOUJO || HONEYSELECT2
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "skinWetness",
+                    parameter: null,
+                    name: "Skin Wet",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((OCIChar)oci).SetWetRate(Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor)),
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => oci is OCIChar,
+                    getValue: (oci, parameter) => ((OCIChar)oci).charInfo.wetRate,
+                    readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o)));
+
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                   owner: Timeline._ownerId,
+                   id: "skinGloss",
+                   parameter: null,
+                   name: "Skin Gloss",
+                   interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((OCIChar)oci).charInfo.skinGlossRate = Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor),
+                   interpolateAfter: null,
+                   isCompatibleWithTarget: (oci) => oci is OCIChar,
+                   getValue: (oci, parameter) => ((OCIChar)oci).charInfo.skinGlossRate,
+                   readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                   writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o)));
+
+#endif
             Timeline.AddInterpolableModel(new InterpolableModel(
                     owner: Timeline._ownerId,
                     id: "blush",

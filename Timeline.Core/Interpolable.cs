@@ -16,11 +16,6 @@ namespace Timeline
         public bool enabled = true;
         public Color color = Color.white;
         public string alias = "";
-
-#if FEATURE_ENHANCED_MGMT
-        public int playbackKeyFrameIdx = 0;
-#endif
-
 #if FEATURE_SOUND
         public  AudioSource audioSource = null;
 #endif
@@ -44,7 +39,7 @@ namespace Timeline
             unchecked
             {
                 int hash = base.GetHashCode();
-                _hashCode = hash * 31 + (this.oci != null ? this.oci.GetHashCode() : 0); 
+                _hashCode = hash * 31 + (this.oci != null ? this.oci.GetHashCode() : 0);
             }
         }
 

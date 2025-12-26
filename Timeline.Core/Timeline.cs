@@ -34,9 +34,11 @@ using HarmonyLib;
 using Expression = ExpressionBone;
 using ExtensibleSaveFormat;
 using Sideloader.AutoResolver;
+using KKAPI.Studio.UI;
 #elif AISHOUJO || HONEYSELECT2
 using CharaUtils;
 using ExtensibleSaveFormat;
+using KKAPI.Studio.UI.Toolbars;
 #endif
 
 #if FEATURE_AUTOGEN
@@ -67,7 +69,7 @@ namespace Timeline
     {
         #region Constants
         public const string Name = "Timeline";
-        public const string Version = "1.5.1";
+        public const string Version = "1.5.4";
         public const string GUID = "com.joan6694.illusionplugins.timeline";
         internal const string _ownerId = "Timeline";
 #if KOIKATSU || AISHOUJO || HONEYSELECT2
@@ -98,7 +100,7 @@ namespace Timeline
             public GroupNode<InterpolableGroup> group;
         }
 
-        public class InterpolableDisplay
+        private class InterpolableDisplay
         {
             public GameObject gameObject;
             public LayoutElement layoutElement;
@@ -114,7 +116,7 @@ namespace Timeline
             public LeafNode<Interpolable> interpolable;
         }
 
-        public class InterpolableModelDisplay
+        private class InterpolableModelDisplay
         {
             public GameObject gameObject;
             public LayoutElement layoutElement;
@@ -123,7 +125,7 @@ namespace Timeline
             public InterpolableModel model;
         }
 
-        public class KeyframeDisplay
+        private class KeyframeDisplay
         {
             public GameObject gameObject;
             public RawImage image;
@@ -150,7 +152,7 @@ namespace Timeline
             public PointerDownHandler pointerDownHandler;
         }
 
-        public class InterpolableGroup
+        private class InterpolableGroup
         {
             public string name;
             public bool expanded = true;
@@ -221,14 +223,16 @@ namespace Timeline
 
         internal static new ManualLogSource Logger;
         internal static Timeline _self;
-        private static string _assemblyLocation;        
+        private static string _assemblyLocation;
 
         private static string _selectedFileSoundFolder;
         private static string _selectedFileXmlFolder;
-
         private static string _selectedFileWithExtention;
+
         private static bool _refreshInterpolablesListScheduled = false;
+        private static TimelineButton _toolbarButton;
         private bool _loaded = false;
+
         private int _totalActiveExpressions = 0;
         private int _currentExpressionIndex = 0;
         private readonly HashSet<Expression> _allExpressions = new HashSet<Expression>();
@@ -352,7 +356,7 @@ namespace Timeline
         private double _keyframeSelectionSize;
         private int _selectedKeyframeCurvePointIndex = -1;
         private ObjectCtrlInfo _selectedOCI;
-
+        // private GuideObject _selectedGuideObject;
         private readonly AnimationCurve _copiedKeyframeCurve = new AnimationCurve();
 
         private bool _isAreaSelecting;
@@ -367,20 +371,16 @@ namespace Timeline
         private Dictionary<int, Interpolable> _instantActionInterpolables = new Dictionary<int, Interpolable>();
         private KeyValuePair <float, Interpolable> _keepSoundInterpolable = new KeyValuePair<float, Interpolable>(); 
         private readonly Dictionary<int, TimerItem> _activeTimers = new Dictionary<int, TimerItem>();
-        private Guid _uuid = Guid.NewGuid();        
+        private Guid _uuid = Guid.NewGuid();
 #endif
 #if FEATURE_UNDO && FEATURE_PUBLIC
-        private LimitedStack<TransactionData> _undoStack = new LimitedStack<TransactionData>(3);
-        private LimitedStack<TransactionData> _redoStack = new LimitedStack<TransactionData>(3);        
+        private LimitedStack<TransactionData> _undoStack = new LimitedStack<TransactionData>(2);
+        private LimitedStack<TransactionData> _redoStack = new LimitedStack<TransactionData>(2);        
 #else
         private LimitedStack<TransactionData> _undoStack = new LimitedStack<TransactionData>(10);
         private LimitedStack<TransactionData> _redoStack = new LimitedStack<TransactionData>(10);
 #endif
 
-#if FEATURE_KEYFRAME_POOL
-        private Queue<KeyframeDisplay> _keyframeDisplayPool = new Queue<KeyframeDisplay>();
-#endif
-        private Vector2 _cursorPoint;
 
         #endregion
 
@@ -395,18 +395,19 @@ namespace Timeline
                 if (_self._isPlaying != value)
                 {
                     _self._isPlaying = value;
-                    TimelineButton.UpdateButton();
+                    _toolbarButton?.UpdateButton();
                 }
             }
         }
+
 #if FEATURE_AUTOGEN
-        public static AutoGenAnimType currentAutogenAnimType = AutoGenAnimType.NONE_ANIM;  
+        public static AutoGenAnimType _currentAutogenAnimType = AutoGenAnimType.NONE_ANIM;  
 
         public enum AutoGenAnimType
         {
             NONE_ANIM,
-            FK_ANIM,
-            NOR_ANIM,
+            TPOS_ANIM,
+            EMBED_ANIM,
             POS_ANIM
         }
 #endif
@@ -447,6 +448,7 @@ namespace Timeline
         protected override void Awake()
         {
             base.Awake();
+
             ConfigMainWindowShortcut = Config.Bind("Config", "Open Timeline UI", new KeyboardShortcut(KeyCode.T, KeyCode.LeftControl));
             ConfigPlayPauseShortcut = Config.Bind("Config", "Play or Pause Timeline", new KeyboardShortcut(KeyCode.T, KeyCode.LeftShift));
             ConfigKeyframeCopyShortcut = Config.Bind("Config", "Copy Keyframes", new KeyboardShortcut(KeyCode.C, KeyCode.LeftControl));
@@ -475,9 +477,9 @@ namespace Timeline
             Logger = base.Logger;
 
             _assemblyLocation = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+
             _selectedFileSoundFolder = Path.Combine(_assemblyLocation, Path.Combine(Name, "Single Files"));
             _selectedFileXmlFolder = Path.Combine(_assemblyLocation, Path.Combine(Name, "Single Files"));
-
 
 #if HONEYSELECT
             HSExtSave.HSExtSave.RegisterHandler("timeline", null, null, this.SceneLoad, this.SceneImport, this.SceneWrite, null, null);
@@ -546,7 +548,7 @@ namespace Timeline
                         CutKeyframes();
                     else if (ConfigKeyframePasteShortcut.Value.IsDown())
                         PasteKeyframes();
-#if FEATURE_AUTOGEN
+    #if FEATURE_AUTOGEN
                     else if (ConfigKeyframeSelectAllShortcut.Value.IsDown()) 
                         SelectAllAction();
                     else if (ConfigKeyframeDeleteAllShortcut.Value.IsDown()) 
@@ -555,13 +557,13 @@ namespace Timeline
                         MoveLeftKeyframes();
                     else if (ConfigKeyframeMoveRightShortcut.Value.IsDown())
                         MoveRightKeyframes();              
-#endif
-#if FEATURE_UNDO
+    #endif
+    #if FEATURE_UNDO
                     else if (ConfigKeyframeUndoShortcut.Value.IsDown())
                         UndoPopupAction(0);
                     else if (ConfigKeyframeRedoShortcut.Value.IsDown())
                         UndoPopupAction(1);                 
-#endif
+    #endif
 
                     if (_speedInputField.isFocused == false)
                         _speedInputField.text = Time.timeScale.ToString("0.#####");
@@ -569,35 +571,6 @@ namespace Timeline
             }
 
             InterpolateBefore();
-        }
-
-
-        private void DelayUpdate() {
-
-            _totalActiveExpressions = _allExpressions.Count(e => e.enabled && e.gameObject.activeInHierarchy);
-            _currentExpressionIndex = 0;
-
-            if (_toDelete.Count != 0)
-            {
-                try
-                {
-                    RemoveInterpolables(_toDelete);
-                }
-                catch (Exception ex)
-                {
-                    Logger.LogError("Failed to Remove Interpolables from toDelete list: " + ex);
-                }
-                _toDelete.Clear();
-            }
-
-            if (_tooltip.transform.parent.gameObject.activeSelf)
-            {
-                Vector2 localPoint;
-                if (RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)_tooltip.transform.parent.parent, Input.mousePosition, _ui.worldCamera, out localPoint))
-                    _tooltip.transform.parent.position = _tooltip.transform.parent.parent.TransformPoint(localPoint);
-            }
-
-            TimelineButton.OnUpdate();
         }
 
         private void ToggleUiVisible()
@@ -618,7 +591,7 @@ namespace Timeline
             else
             {
                 UIUtility.HideContextMenu();
-                TimelineButton.UpdateButton();
+                _toolbarButton?.UpdateButton();
             }
         }
 
@@ -627,7 +600,7 @@ namespace Timeline
             if (_ui.gameObject.activeSelf && (Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(2)) && UIUtility.IsContextMenuDisplayed() && UIUtility.WasClickInContextMenu() == false)
             {
                 UIUtility.HideContextMenu();
-                TimelineButton.UpdateButton();
+                _toolbarButton?.UpdateButton();
             }
 
             InterpolateAfter();
@@ -640,7 +613,7 @@ namespace Timeline
       
         #endregion
 
-        #region Public Methods        
+        #region Public Methods
         /// <summary>
         /// Start playback or pause it if it's already playing.
         /// </summary>
@@ -696,7 +669,7 @@ namespace Timeline
 
             }
         }
-
+        
         /// <summary>
         /// Move playback cursor to the previous frame (based on desired framerate).
         /// </summary>
@@ -871,7 +844,7 @@ namespace Timeline
         {
             float realDuration = 0;
             Interpolable interpolable = _self._interpolables.Values.FirstOrDefault(x => x.id == "timeScale");
-            if (interpolable == null)
+            if (interpolable == null || !interpolable.enabled)
                 return (Time.timeScale == 0) ? duration : duration / Time.timeScale;
 
             List<KeyValuePair<float, Keyframe>> keyframes = interpolable.keyframes.TakeWhile(x => x.Key <= duration).ToList();
@@ -912,7 +885,7 @@ namespace Timeline
 
         #region Private Methods
 
-#if FEATURE_SOUND
+        #if FEATURE_SOUND
         // type = 1(play), type = 2(pause), type =3(stop)
         private void SoundCtrl(int type) {
             foreach (KeyValuePair<int, ObjectCtrlInfo> pair in Studio.Studio.Instance.dicObjectCtrl)
@@ -943,46 +916,6 @@ namespace Timeline
             }
         }
 #endif
-
-#if FEATURE_KEYFRAME_POOL
-        private IEnumerator CreateKeyFrameDisplaysCoroutine(int countPerFrame, int totalCount)
-        {
-            for (int i = 0; i < totalCount; i++)
-            {
-                _keyframeDisplayPool.Enqueue(CreateKeyFrameDisplay());
-
-                // 일정 수 처리 후 프레임 넘김
-                if ((i + 1) % countPerFrame == 0)
-                    yield return null;
-            }
-        }
-            
-                   // keyframeDisplay 오브젝트 꺼내기
-        private KeyframeDisplay GetFromKeyframeDisplayPool()
-        {
-            if (_keyframeDisplayPool.Count > 0)
-            {
-                KeyframeDisplay obj = _keyframeDisplayPool.Dequeue();
-                return obj;
-            }
-            else
-            {
-                KeyframeDisplay obj =  CreateKeyFrameDisplay();
-                return obj;
-            }
-        }
-
-        // keyframeDisplay 오브젝트 반납
-        private void ReturnToKeyframeDisplayPool(KeyframeDisplay obj)
-        {
-            obj.gameObject.SetActive(false);
-            obj.keyframe = null;
-            obj.gameObject.transform.SetParent(null); // 풀로 귀환
-            _keyframeDisplayPool.Enqueue(obj);
-        }      
-#endif
-
-
         private Interpolable AddInterpolable(InterpolableModel model)
         {
             bool added = false;
@@ -999,8 +932,9 @@ namespace Timeline
                     _interpolablesTree.AddLeaf(interpolable);
 #if FEATURE_SOUND
                     if(interpolable.instantAction) {
-                        if (!_instantActionInterpolables.ContainsKey(interpolable.oci.GetHashCode())) {
-                            _instantActionInterpolables.Add(interpolable.oci.GetHashCode(), interpolable);
+                        int key = interpolable.GetHashCode();
+                        if (!_instantActionInterpolables.ContainsKey(key)) {
+                            _instantActionInterpolables.Add(key, interpolable);
                         }
                     }
 #endif
@@ -1219,13 +1153,13 @@ namespace Timeline
                 else
                 {
                     if (e.scrollDelta.y > 0)
-                        interpolableHeight = Mathf.Min(interpolableHeight + 1, _interpolableMaxHeight);
+                      interpolableHeight = Mathf.Min(interpolableHeight + 1, _interpolableMaxHeight);
                     else
-                        interpolableHeight = Mathf.Max(interpolableHeight - 1, _interpolableMinHeight);
+                      interpolableHeight = Mathf.Max(interpolableHeight - 1, _interpolableMinHeight);
 
                     UpdateInterpolablesView();
                 }
-            };
+              };
             DragHandler handler = _gridTop.gameObject.AddComponent<DragHandler>();
             //handler.onBeginDrag = (e) =>
             //{
@@ -1253,7 +1187,7 @@ namespace Timeline
                     ZoomOut();
                 e.Reset();
             };
-            _verticalScrollView.onValueChanged.AddListener(ScrollVerticalKeyframes);            
+            _verticalScrollView.onValueChanged.AddListener(ScrollKeyframes);
             _keyframesContainer.gameObject.AddComponent<ScrollHandler>().onScroll = e =>
             {
                 if (Input.GetKey(KeyCode.LeftControl))
@@ -1275,12 +1209,8 @@ namespace Timeline
                     e.Reset();
                 }
                 else
-                {
                     _horizontalScrollView.OnScroll(e);
-                    e.Reset();
-                }
             };
-
             handler = _keyframesContainer.gameObject.AddComponent<DragHandler>();
             handler.onInitializePotentialDrag = (e) =>
             {
@@ -1310,25 +1240,14 @@ namespace Timeline
             //Keyframe window
             _keyframeWindow = _ui.transform.Find("Keyframe Window").gameObject;
             UIUtility.MakeObjectDraggable((RectTransform)_keyframeWindow.transform.Find("Top Container"), (RectTransform)_keyframeWindow.transform, (RectTransform)_ui.transform);
-            // 성능 개선
-            var mainFields = _keyframeWindow.transform.Find("Main Container/Main Fields");
-            _keyframeInterpolableNameText = mainFields.Find("Interpolable Name").GetComponent<Text>();
-            _keyframeSelectPrevButton = mainFields.Find("Prev Next/Prev").GetComponent<Button>();
-            _keyframeSelectNextButton = mainFields.Find("Prev Next/Next").GetComponent<Button>();
-            _keyframeTimeTextField = mainFields.Find("Time/InputField").GetComponent<InputField>();
-            _keyframeUseCurrentTimeButton = mainFields.Find("Use Current Time").GetComponent<Button>();
-            _keyframeValueText = mainFields.Find("Value/Background/Text").GetComponent<Text>();
-            _keyframeUseCurrentValueButton = mainFields.Find("Use Current").GetComponent<Button>();
-            Button deleteButton = mainFields.Find("Delete").GetComponent<Button>();
-
-            // _keyframeInterpolableNameText = _keyframeWindow.transform.Find("Main Container/Main Fields/Interpolable Name").GetComponent<Text>();
-            // _keyframeSelectPrevButton = _keyframeWindow.transform.Find("Main Container/Main Fields/Prev Next/Prev").GetComponent<Button>();
-            // _keyframeSelectNextButton = _keyframeWindow.transform.Find("Main Container/Main Fields/Prev Next/Next").GetComponent<Button>();
-            // _keyframeTimeTextField = _keyframeWindow.transform.Find("Main Container/Main Fields/Time/InputField").GetComponent<InputField>();
-            // _keyframeUseCurrentTimeButton = _keyframeWindow.transform.Find("Main Container/Main Fields/Use Current Time").GetComponent<Button>();
-            // _keyframeValueText = _keyframeWindow.transform.Find("Main Container/Main Fields/Value/Background/Text").GetComponent<Text>();
-            // _keyframeUseCurrentValueButton = _keyframeWindow.transform.Find("Main Container/Main Fields/Use Current").GetComponent<Button>();
-            // Button deleteButton = _keyframeWindow.transform.Find("Main Container/Main Fields/Delete").GetComponent<Button>();
+            _keyframeInterpolableNameText = _keyframeWindow.transform.Find("Main Container/Main Fields/Interpolable Name").GetComponent<Text>();
+            _keyframeSelectPrevButton = _keyframeWindow.transform.Find("Main Container/Main Fields/Prev Next/Prev").GetComponent<Button>();
+            _keyframeSelectNextButton = _keyframeWindow.transform.Find("Main Container/Main Fields/Prev Next/Next").GetComponent<Button>();
+            _keyframeTimeTextField = _keyframeWindow.transform.Find("Main Container/Main Fields/Time/InputField").GetComponent<InputField>();
+            _keyframeUseCurrentTimeButton = _keyframeWindow.transform.Find("Main Container/Main Fields/Use Current Time").GetComponent<Button>();
+            _keyframeValueText = _keyframeWindow.transform.Find("Main Container/Main Fields/Value/Background/Text").GetComponent<Text>();
+            _keyframeUseCurrentValueButton = _keyframeWindow.transform.Find("Main Container/Main Fields/Use Current").GetComponent<Button>();
+            Button deleteButton = _keyframeWindow.transform.Find("Main Container/Main Fields/Delete").GetComponent<Button>();
             _keyframeDeleteButtonText = deleteButton.GetComponentInChildren<Text>();
 
             _curveContainer = _keyframeWindow.transform.Find("Main Container/Curve Fields/Curve/Grid/Spline").GetComponent<RawImage>();
@@ -1351,38 +1270,15 @@ namespace Timeline
             _keyframeUseCurrentValueButton.onClick.AddListener(UseCurrentValue);
             deleteButton.onClick.AddListener(DeleteSelectedKeyframes);
 
-            // 성능 개선
-            Transform presets = _keyframeWindow.transform.Find("Main Container/Curve Fields/Fields/Presets");
-            Transform buttons = _keyframeWindow.transform.Find("Main Container/Curve Fields/Fields/Buttons");
 
-            Button _btnLine = presets.Find("Line").GetComponent<Button>();
-            Button _btnTop = presets.Find("Top").GetComponent<Button>();
-            Button _btnBottom = presets.Find("Bottom").GetComponent<Button>();
-            Button _btnHermite = presets.Find("Hermite").GetComponent<Button>();
-            Button _btnStairs = presets.Find("Stairs").GetComponent<Button>();
-            Button _btnCopy = buttons.Find("Copy").GetComponent<Button>();
-            Button _btnPaste = buttons.Find("Paste").GetComponent<Button>();
-            Button _btnInvert = buttons.Find("Invert").GetComponent<Button>();
-
-            // 연결
-            _btnLine.onClick.AddListener(() => ApplyKeyframeCurvePreset(_linePreset));
-            _btnTop.onClick.AddListener(() => ApplyKeyframeCurvePreset(_topPreset));
-            _btnBottom.onClick.AddListener(() => ApplyKeyframeCurvePreset(_bottomPreset));
-            _btnHermite.onClick.AddListener(() => ApplyKeyframeCurvePreset(_hermitePreset));
-            _btnStairs.onClick.AddListener(() => ApplyKeyframeCurvePreset(_stairsPreset));
-
-            _btnCopy.onClick.AddListener(CopyKeyframeCurve);
-            _btnPaste.onClick.AddListener(PasteKeyframeCurve);
-            _btnInvert.onClick.AddListener(InvertKeyframeCurve);
-
-            // _keyframeWindow.transform.Find("Main Container/Curve Fields/Fields/Presets/Line").GetComponent<Button>().onClick.AddListener(() => ApplyKeyframeCurvePreset(_linePreset));
-            // _keyframeWindow.transform.Find("Main Container/Curve Fields/Fields/Presets/Top").GetComponent<Button>().onClick.AddListener(() => ApplyKeyframeCurvePreset(_topPreset));
-            // _keyframeWindow.transform.Find("Main Container/Curve Fields/Fields/Presets/Bottom").GetComponent<Button>().onClick.AddListener(() => ApplyKeyframeCurvePreset(_bottomPreset));
-            // _keyframeWindow.transform.Find("Main Container/Curve Fields/Fields/Presets/Hermite").GetComponent<Button>().onClick.AddListener(() => ApplyKeyframeCurvePreset(_hermitePreset));
-            // _keyframeWindow.transform.Find("Main Container/Curve Fields/Fields/Presets/Stairs").GetComponent<Button>().onClick.AddListener(() => ApplyKeyframeCurvePreset(_stairsPreset));
-            // _keyframeWindow.transform.Find("Main Container/Curve Fields/Fields/Buttons/Copy").GetComponent<Button>().onClick.AddListener(CopyKeyframeCurve);
-            // _keyframeWindow.transform.Find("Main Container/Curve Fields/Fields/Buttons/Paste").GetComponent<Button>().onClick.AddListener(PasteKeyframeCurve);
-            // _keyframeWindow.transform.Find("Main Container/Curve Fields/Fields/Buttons/Invert").GetComponent<Button>().onClick.AddListener(InvertKeyframeCurve);
+            _keyframeWindow.transform.Find("Main Container/Curve Fields/Fields/Presets/Line").GetComponent<Button>().onClick.AddListener(() => ApplyKeyframeCurvePreset(_linePreset));
+            _keyframeWindow.transform.Find("Main Container/Curve Fields/Fields/Presets/Top").GetComponent<Button>().onClick.AddListener(() => ApplyKeyframeCurvePreset(_topPreset));
+            _keyframeWindow.transform.Find("Main Container/Curve Fields/Fields/Presets/Bottom").GetComponent<Button>().onClick.AddListener(() => ApplyKeyframeCurvePreset(_bottomPreset));
+            _keyframeWindow.transform.Find("Main Container/Curve Fields/Fields/Presets/Hermite").GetComponent<Button>().onClick.AddListener(() => ApplyKeyframeCurvePreset(_hermitePreset));
+            _keyframeWindow.transform.Find("Main Container/Curve Fields/Fields/Presets/Stairs").GetComponent<Button>().onClick.AddListener(() => ApplyKeyframeCurvePreset(_stairsPreset));
+            _keyframeWindow.transform.Find("Main Container/Curve Fields/Fields/Buttons/Copy").GetComponent<Button>().onClick.AddListener(CopyKeyframeCurve);
+            _keyframeWindow.transform.Find("Main Container/Curve Fields/Fields/Buttons/Paste").GetComponent<Button>().onClick.AddListener(PasteKeyframeCurve);
+            _keyframeWindow.transform.Find("Main Container/Curve Fields/Fields/Buttons/Invert").GetComponent<Button>().onClick.AddListener(InvertKeyframeCurve);
 
             _keyframeTimeTextField.onEndEdit.AddListener(UpdateSelectedKeyframeTime);
 
@@ -1395,35 +1291,26 @@ namespace Timeline
             _curveInTangentSlider.onValueChanged.AddListener(UpdateCurvePointInTangent);
             _curveOutTangentInputField.onEndEdit.AddListener(UpdateCurvePointOutTangent);
             _curveOutTangentSlider.onValueChanged.AddListener(UpdateCurvePointOutTangent);
+
             _ui.gameObject.SetActive(false);
             _helpPanel.gameObject.SetActive(false);
             _singleFilesPanel.gameObject.SetActive(false);
             _keyframeWindow.gameObject.SetActive(false);
             _tooltip.transform.parent.gameObject.SetActive(false);
-#if FEATURE_KEYFRAME_POOL
-            StartCoroutine(CreateKeyFrameDisplaysCoroutine(
-                countPerFrame: 100,     // 1프레임당 최대 100개 처리
-                totalCount: 200       // 총 생성할 KeyframeDisplay 수
-            ));            
-#endif
-            InvokeRepeating(nameof(DelayUpdate), 0f, 1f); // 1초마다 주기적 호출
 
+            UpdateInterpolablesView();
+           
             _loaded = true;
 
-            // Wrap in a try since it will crash if KKAPI is not installed
-            try { StartCoroutine(TimelineButton.Init()); }
-            catch (Exception ex) { Logger.LogError(ex); }
+            _toolbarButton = new TimelineButton(this);
+            ToolbarManager.AddLeftToolbarControl(_toolbarButton);
         }
 
-        private void ScrollVerticalKeyframes(Vector2 arg0)
+        private void ScrollKeyframes(Vector2 arg0)
         {
             _keyframesContainer.anchoredPosition = new Vector2(_keyframesContainer.anchoredPosition.x, _verticalScrollView.content.anchoredPosition.y);
             _miscContainer.anchoredPosition = new Vector2(_miscContainer.anchoredPosition.x, _verticalScrollView.content.anchoredPosition.y);
         }
-        // private void ScrollHorizontalKeyframes(Vector2 arg0)
-        // {
-        //     // _keyframesContainer.anchoredPosition = new Vector2(_horizontalScrollView.content.anchoredPosition.x, _keyframesContainer.anchoredPosition.y);
-        // }
 
         private void InterpolateBefore()
         {
@@ -1452,7 +1339,7 @@ namespace Timeline
             {
                 Interpolate(false);
             }
-        }
+        }        
 
 #if FEATURE_SOUND
         private void RegisterSoundTimer(float startPlayTime){
@@ -1512,9 +1399,7 @@ namespace Timeline
                 interpolable.InterpolateBefore(keyframe.value, 0, 0);
             }
         }
-#endif
 
-#if FEATURE_SOUND
         private Dictionary<string, SoundItem> SearchActiveSound()
         {
             Dictionary<string, SoundItem> activeSoundFiles = new Dictionary<string, SoundItem>();
@@ -1586,16 +1471,16 @@ namespace Timeline
                         audioSource.mute = false;
                     }
                 } else {                                       
-                    foreach (KeyValuePair<float, Keyframe> keyframePair in interpolable.keyframes)
+                foreach (KeyValuePair<float, Keyframe> keyframePair in interpolable.keyframes)
+                {
+                    if (keyframePair.Key <= _playbackTime)
+                        left = keyframePair;
+                    else
                     {
-                        if (keyframePair.Key <= _playbackTime)
-                            left = keyframePair;
-                        else
-                        {
-                            right = keyframePair;
-                            break;
-                        }
-                    }                    
+                        right = keyframePair;
+                        break;
+                    }
+                }
                 }
 #else
                 foreach (KeyValuePair<float, Keyframe> keyframePair in interpolable.keyframes)
@@ -1689,17 +1574,13 @@ namespace Timeline
             }
 
             return total * duration;
-        }            
-           
+        }
+
         #region Main Window
         private void UpdateCursor()
         {
-            _cursorPoint = _cursor.anchoredPosition; // 현재 y 값을 유지
-            _cursorPoint.x = (_playbackTime * _grid.rect.width) / _duration;
-            _cursor.anchoredPosition = _cursorPoint;
-
+            _cursor.anchoredPosition = new Vector2((_playbackTime * _grid.rect.width) / _duration, _cursor.anchoredPosition.y);
             UpdateCursor2();
-
             _timeInputField.text = $"{Mathf.FloorToInt(_playbackTime / 60):00}:{(_playbackTime % 60):00.000}";
         }
 
@@ -1792,11 +1673,11 @@ namespace Timeline
             _verticalScrollView.verticalNormalizedPosition = 1f;    // Reset scroll position
         }
 
-        private void UpdateFilterRegex(string filterText)
+        private void UpdateFilterRegex( string filterText )
         {
             filterText = filterText.Trim();
 
-            if (string.IsNullOrEmpty(filterText))
+            if ( string.IsNullOrEmpty(filterText) )
             {
                 _interpolablesSearchRegex = new Regex(".*", RegexOptions.IgnoreCase);
                 return;
@@ -1804,8 +1685,8 @@ namespace Timeline
 
             var filters = filterText.Split('|');
             StringBuilder builder = new StringBuilder();
-
-            for (int i = 0; i < filters.Length; ++i)
+            
+            for( int i = 0; i < filters.Length; ++i )
             {
                 var filter = filters[i].Trim();
 
@@ -1852,9 +1733,9 @@ namespace Timeline
                 {
                     _interpolablesSearchRegex = new Regex(builder.ToString(), RegexOptions.IgnoreCase);
                     return;
-                }
+                }   
             }
-            catch (System.Exception e)
+            catch( System.Exception e )
             {
                 Logger.LogError(e);
             }
@@ -1889,9 +1770,9 @@ namespace Timeline
             return true;
         }
 
-        private bool IsFilterInterpolationMatch(InterpolableModel interpolableModel)
+        private bool IsFilterInterpolationMatch( InterpolableModel interpolableModel )
         {
-            if (interpolableModel is Interpolable interporable && _interpolablesSearchRegex.IsMatch(interporable.alias))
+            if( interpolableModel is Interpolable interporable && _interpolablesSearchRegex.IsMatch(interporable.alias) )
                 return true;
 
             return _interpolablesSearchRegex.IsMatch(interpolableModel.name);
@@ -1961,7 +1842,7 @@ namespace Timeline
 
             this.ExecuteDelayed2(UpdateSeparators, 2);
 
-            TimelineButton.UpdateButton();
+            _toolbarButton?.UpdateButton();
         }
 
         private void UpdateInterpolablesViewTree(List<INode> nodes, bool showAll, ref int interpolableDisplayIndex, ref int headerDisplayIndex, ref float height, int indent = 0)
@@ -1973,7 +1854,7 @@ namespace Timeline
                     case INodeType.Leaf:
                         Interpolable interpolable = ((LeafNode<Interpolable>)node).obj;
                         if (ShouldShowInterpolable(interpolable, showAll) == false)
-                            continue;                        
+                            continue;
 
                         InterpolableDisplay display = GetInterpolableDisplay(interpolableDisplayIndex);
                         display.gameObject.transform.SetAsLastSibling();
@@ -1998,7 +1879,6 @@ namespace Timeline
                         display.layoutElement.preferredHeight = interpolableHeight;
                         height += interpolableHeight;
                         _gridHeights.Add(height);
-                    
                         ++interpolableDisplayIndex;
                         break;
                     case INodeType.Group:
@@ -2061,6 +1941,21 @@ namespace Timeline
                 ++i;
             }
 
+            //for (int y = _interpolableHeight; y < this._verticalScrollView.content.rect.height; y += _interpolableHeight)
+            //{
+            //    RawImage separator;
+            //    if (i < this._interpolableSeparators.Count)
+            //        separator = this._interpolableSeparators[i];
+            //    else
+            //    {
+            //        separator = UIUtility.CreateRawImage("Separator", this._miscContainer);
+            //        separator.color = new Color(0f, 0f, 0f, 0.5f);
+            //        this._interpolableSeparators.Add(separator);
+            //    }
+            //    separator.gameObject.SetActive(true);
+            //    separator.rectTransform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, -y - 1.5f), new Vector2(0f, -y + 1.5f));
+            //    ++i;
+            //}
             for (; i < _interpolableSeparators.Count; i++)
                 _interpolableSeparators[i].gameObject.SetActive(false);
         }
@@ -2135,8 +2030,12 @@ namespace Timeline
 
                             break;
                         case PointerEventData.InputButton.Middle:
-                            if (Input.GetKey(KeyCode.LeftControl))
+                            if (Input.GetKey(KeyCode.LeftControl)) {
+#if FEATURE_UNDO
+                                UndoPushAction();
+#endif
                                 RemoveInterpolable(interpolable);
+                            }
                             break;
                         case PointerEventData.InputButton.Right:
                             if (RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)_ui.transform, e.position, e.pressEventCamera, out Vector2 localPoint))
@@ -2277,9 +2176,13 @@ namespace Timeline
                                     text = currentlySelectedInterpolables.Count == 1 ? "Add keyframe at cursor" : "Add keyframes at cursor",
                                     onClick = p =>
                                     {
+#if FEATURE_UNDO
+                                        UndoPushAction();
+#endif
                                         float time = _playbackTime % _duration;
                                         foreach (Interpolable selectedInterpolable in currentlySelectedInterpolables)
                                             AddKeyframe(selectedInterpolable, time);
+
                                         UpdateGrid();
                                     }
                                 });
@@ -2380,7 +2283,6 @@ namespace Timeline
                 display.gameObject.transform.localScale = Vector3.one;
                 _displayedInterpolableModels.Add(display);
             }
-
             display.gameObject.SetActive(true);
             return display;
         }
@@ -2542,7 +2444,6 @@ namespace Timeline
                                             if (n.type == INodeType.Leaf)
                                                 AddKeyframe(((LeafNode<Interpolable>)n).obj, time);
                                         });
-                                   
                                         UpdateGrid();
                                     }
                                 });
@@ -2728,7 +2629,7 @@ namespace Timeline
 
             if (scrollTo)
             {
-                var rectTransform = (RectTransform)display.container.parent;
+                var rectTransform = (RectTransform)display.container.parent;                
                 var parent = (RectTransform)rectTransform.parent;
                 var view = (RectTransform)parent.parent;
 
@@ -2819,7 +2720,7 @@ namespace Timeline
                 Vector2 min = new Vector2(Mathf.Min(_areaSelectFirstPoint.x, localPoint.x), Mathf.Min(_areaSelectFirstPoint.y, localPoint.y));
                 Vector2 max = new Vector2(Mathf.Max(_areaSelectFirstPoint.x, localPoint.x), Mathf.Max(_areaSelectFirstPoint.y, localPoint.y));
 
-                if (Input.GetKey(KeyCode.LeftAlt))
+                if( Input.GetKey(KeyCode.LeftAlt) )
                 {
                     //Maximize the top and bottom of the selection
                     var rect = _keyframesContainer.rect;
@@ -2857,7 +2758,7 @@ namespace Timeline
             float minY = Mathf.Min(_areaSelectFirstPoint.y, localPoint.y);
             float maxY = Mathf.Max(_areaSelectFirstPoint.y, localPoint.y);
 
-            if (Input.GetKey(KeyCode.LeftAlt))
+            if (Input.GetKey(KeyCode.LeftAlt) )
             {
                 //Maximize the top and bottom of the selection
                 var rect = _keyframesContainer.rect;
@@ -2933,7 +2834,6 @@ namespace Timeline
             }
         }
 
-
         private void UpdateGrid()
         {
             _durationInputField.text = $"{Mathf.FloorToInt(_duration / 60):00}:{(_duration % 60):00.00}";
@@ -2969,7 +2869,6 @@ namespace Timeline
             bool showAll = _allToggle.isOn;
             int keyframeIndex = 0;
             int interpolableIndex = 0;
-    
             UpdateKeyframesTree(_interpolablesTree.tree, showAll, ref interpolableIndex, ref keyframeIndex);
 
             for (; keyframeIndex < _displayedKeyframes.Count; ++keyframeIndex)
@@ -2986,10 +2885,8 @@ namespace Timeline
             this.ExecuteDelayed2(() => _keyframesContainer.sizeDelta = new Vector2(_keyframesContainer.sizeDelta.x, _verticalScrollView.content.rect.height), 2);
         }
 
-       private void UpdateKeyframesTree(List<INode> nodes, bool showAll, ref int interpolableIndex, ref int keyframeIndex)
+        private void UpdateKeyframesTree(List<INode> nodes, bool showAll, ref int interpolableIndex, ref int keyframeIndex)
         {
-            float zoomGridWidth = _baseGridWidth * _zoomLevel;
-            Vector2 tempPos = Vector2.zero;
             foreach (INode node in nodes)
             {
                 switch (node.type)
@@ -3006,33 +2903,175 @@ namespace Timeline
 
                         foreach (KeyValuePair<float, Keyframe> keyframePair in interpolable.keyframes)
                         {
-                            float x = zoomGridWidth * keyframePair.Key / 10f;
                             KeyframeDisplay display;
                             if (keyframeIndex < _displayedKeyframes.Count)
                                 display = _displayedKeyframes[keyframeIndex];
                             else
                             {
-#if FEATURE_KEYFRAME_POOL
-                                display = GetFromKeyframeDisplayPool();
-#else
-                                display = CreateKeyFrameDisplay();
-#endif
+                                display = new KeyframeDisplay();
+                                display.gameObject = GameObject.Instantiate(_keyframePrefab);
+                                display.gameObject.hideFlags = HideFlags.None;
+                                display.image = display.gameObject.transform.Find("RawImage").GetComponent<RawImage>();
 
                                 display.gameObject.transform.SetParent(_keyframesContainer);
                                 display.gameObject.transform.localPosition = Vector3.zero;
-                                display.gameObject.transform.localScale = Vector3.one;   
+                                display.gameObject.transform.localScale = Vector3.one;
 
-                                _displayedKeyframes.Add(display);                             
+                                PointerEnterHandler pointerEnter = display.gameObject.AddComponent<PointerEnterHandler>();
+                                pointerEnter.onPointerEnter = (e) =>
+                                {
+                                    _tooltip.transform.parent.gameObject.SetActive(true);
+                                    float t = display.keyframe.parent.keyframes.First(k => k.Value == display.keyframe).Key;
+                                    _tooltip.text = $"T: {Mathf.FloorToInt(t / 60):00}:{t % 60:00.########}\nV: {display.keyframe.value}";
+                                };
+                                pointerEnter.onPointerExit = (e) => { _tooltip.transform.parent.gameObject.SetActive(false); };
+                                PointerDownHandler pointerDown = display.gameObject.AddComponent<PointerDownHandler>();
+                                pointerDown.onPointerDown = (e) =>
+                                {
+                                    if (Input.GetKey(KeyCode.LeftAlt))
+                                        return;
+                                    switch (e.button)
+                                    {
+                                        case PointerEventData.InputButton.Left:
+                                            if (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl))
+                                                SelectAddKeyframes(display.keyframe.parent.keyframes.First(k => k.Value == display.keyframe));
+                                            else if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))
+                                            {
+                                                KeyValuePair<float, Keyframe> lastSelected = _selectedKeyframes.LastOrDefault(k => k.Value.parent == display.keyframe.parent);
+                                                if (lastSelected.Value != null)
+                                                {
+                                                    KeyValuePair<float, Keyframe> selectingNow = display.keyframe.parent.keyframes.First(k => k.Value == display.keyframe);
+                                                    float minTime;
+                                                    float maxTime;
+                                                    if (lastSelected.Key < selectingNow.Key)
+                                                    {
+                                                        minTime = lastSelected.Key;
+                                                        maxTime = selectingNow.Key;
+                                                    }
+                                                    else
+                                                    {
+                                                        minTime = selectingNow.Key;
+                                                        maxTime = lastSelected.Key;
+                                                    }
+                                                    SelectAddKeyframes(display.keyframe.parent.keyframes.Where(k => k.Key > minTime && k.Key < maxTime));
+                                                    SelectAddKeyframes(selectingNow);
+                                                }
+                                                else
+                                                    SelectAddKeyframes(display.keyframe.parent.keyframes.First(k => k.Value == display.keyframe));
+                                            }
+                                            else
+                                                SelectKeyframes(display.keyframe.parent.keyframes.First(k => k.Value == display.keyframe));
+
+                                            break;
+                                        case PointerEventData.InputButton.Right:
+                                            SeekPlaybackTime(display.keyframe.parent.keyframes.First(k => k.Value == display.keyframe).Key);
+                                            break;
+                                        case PointerEventData.InputButton.Middle:
+                                            if (Input.GetKey(KeyCode.LeftControl))
+                                            {
+                                                List<KeyValuePair<float, Keyframe>> toDelete = new List<KeyValuePair<float, Keyframe>>();
+                                                if (Input.GetKey(KeyCode.LeftShift))
+                                                    toDelete.AddRange(_selectedKeyframes);
+                                                KeyValuePair<float, Keyframe> kPair = display.keyframe.parent.keyframes.FirstOrDefault(k => k.Value == display.keyframe);
+                                                if (kPair.Value != null)
+                                                    toDelete.Add(kPair);
+                                                if (toDelete.Count != 0)
+                                                {
+#if FEATURE_UNDO
+                                                    UndoPushAction();
+#endif
+                                                    DeleteKeyframes(toDelete);
+                                                    _tooltip.transform.parent.gameObject.SetActive(false);
+                                                }
+                                            }
+                                            break;
+                                    }
+                                };
+
+                                DragHandler dragHandler = display.gameObject.AddComponent<DragHandler>();
+                                dragHandler.onBeginDrag = e =>
+                                {
+                                    if (Input.GetKey(KeyCode.LeftAlt) == false)
+                                        return;
+                                    Vector2 localPoint;
+                                    if (RectTransformUtility.ScreenPointToLocalPointInRectangle(_keyframesContainer, e.position, e.pressEventCamera, out localPoint))
+                                    {
+                                        _selectedKeyframesXOffset.Clear();
+                                        foreach (KeyValuePair<float, Keyframe> selectedKeyframe in _selectedKeyframes)
+                                        {
+                                            KeyframeDisplay selectedDisplay = _displayedKeyframes.Find(d => d.keyframe == selectedKeyframe.Value);
+                                            _selectedKeyframesXOffset.Add(selectedDisplay, ((RectTransform)selectedDisplay.gameObject.transform).anchoredPosition.x - localPoint.x);
+                                        }
+                                    }
+                                    if (_selectedKeyframesXOffset.Count != 0)
+                                        isPlaying = false;
+                                    e.Reset();
+                                };
+                                dragHandler.onDrag = e =>
+                                {
+                                    if (_selectedKeyframesXOffset.Count == 0)
+                                        return;
+
+                                    Vector2 localPoint;
+                                    if (RectTransformUtility.ScreenPointToLocalPointInRectangle(_keyframesContainer, e.position, e.pressEventCamera, out localPoint))
+                                    {
+                                        float x = localPoint.x;
+                                        foreach (KeyValuePair<KeyframeDisplay, float> pair in _selectedKeyframesXOffset)
+                                        {
+                                            float localX = localPoint.x + pair.Value;
+                                            if (localX < 0f)
+                                                x = localPoint.x - localX;
+                                        }
+
+                                        if (Input.GetKey(KeyCode.LeftShift))
+                                        {
+                                            float time = 10f * x / (_baseGridWidth * _zoomLevel);
+                                            float beat = _blockLength / _divisions;
+                                            float mod = time % beat;
+                                            if (mod / beat > 0.5f)
+                                                time += beat - mod;
+                                            else
+                                                time -= mod;
+                                            x = (time * _baseGridWidth * _zoomLevel) / 10f - _selectedKeyframesXOffset[display];
+                                        }
+
+                                        foreach (KeyValuePair<KeyframeDisplay, float> pair in _selectedKeyframesXOffset)
+                                        {
+                                            RectTransform rt = ((RectTransform)pair.Key.gameObject.transform);
+                                            rt.anchoredPosition = new Vector2(x + pair.Value, rt.anchoredPosition.y);
+                                        }
+                                    }
+                                    e.Reset();
+                                };
+
+                                dragHandler.onEndDrag = e =>
+                                {
+                                    if (_selectedKeyframesXOffset.Count == 0)
+                                        return;
+#if FEATURE_UNDO
+                                    UndoPushAction();
+#endif
+                                    foreach (KeyValuePair<KeyframeDisplay, float> pair in _selectedKeyframesXOffset)
+                                    {
+                                        RectTransform rt = ((RectTransform)pair.Key.gameObject.transform);
+                                        float time = 10f * rt.anchoredPosition.x / (_baseGridWidth * _zoomLevel);
+                                        MoveKeyframe(pair.Key.keyframe, time);
+
+                                        int index = _selectedKeyframes.FindIndex(k => k.Value == pair.Key.keyframe);
+                                        if (index != -1)
+                                            _selectedKeyframes[index] = new KeyValuePair<float, Keyframe>(time, pair.Key.keyframe);
+                                    }
+
+                                    e.Reset();
+                                    UpdateKeyframeWindow(false);
+                                    _selectedKeyframesXOffset.Clear();
+                                };
+
+                                _displayedKeyframes.Add(display);
                             }
-
                             display.gameObject.SetActive(true);
-
-                            tempPos.x = x;
-                            tempPos.y = ((RectTransform)interpolableDisplay.gameObject.transform).anchoredPosition.y;
-                            ((RectTransform)display.gameObject.transform).anchoredPosition = tempPos;
-
+                            ((RectTransform)display.gameObject.transform).anchoredPosition = new Vector2(_baseGridWidth * _zoomLevel * keyframePair.Key / 10f, ((RectTransform)interpolableDisplay.gameObject.transform).anchoredPosition.y);
                             display.keyframe = keyframePair.Value;
-                            
                             ++keyframeIndex;
                         }
                         ++interpolableIndex;
@@ -3042,176 +3081,9 @@ namespace Timeline
                         if (group.obj.expanded)
                             UpdateKeyframesTree(group.children, showAll, ref interpolableIndex, ref keyframeIndex);
                         break;
-
                 }
             }
         }
-        
-
-        private KeyframeDisplay CreateKeyFrameDisplay() {
-
-                KeyframeDisplay display = new KeyframeDisplay();
-                display.gameObject = GameObject.Instantiate(_keyframePrefab);
-                display.gameObject.hideFlags = HideFlags.None;
-                display.image = display.gameObject.GetComponentsInChildren<RawImage>()[1]; // 성능 향상
-
-                display.gameObject.transform.SetParent(null);
-                display.gameObject.transform.localPosition = Vector3.zero;
-                display.gameObject.transform.localScale = Vector3.one;
-
-                PointerEnterHandler pointerEnter = display.gameObject.AddComponent<PointerEnterHandler>();
-                pointerEnter.onPointerEnter = (e) =>
-                {
-                    _tooltip.transform.parent.gameObject.SetActive(true);
-                    float t = display.keyframe.parent.keyframes.First(k => k.Value == display.keyframe).Key;
-                    _tooltip.text = $"T: {Mathf.FloorToInt(t / 60):00}:{t % 60:00.########}\nV: {display.keyframe.value}";
-                };
-                pointerEnter.onPointerExit = (e) => { _tooltip.transform.parent.gameObject.SetActive(false); };
-                PointerDownHandler pointerDown = display.gameObject.AddComponent<PointerDownHandler>();
-                pointerDown.onPointerDown = (e) =>
-                {
-                    if (Input.GetKey(KeyCode.LeftAlt))
-                        return;
-                    switch (e.button)
-                    {
-                        case PointerEventData.InputButton.Left:
-                            if (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl))
-                                SelectAddKeyframes(display.keyframe.parent.keyframes.First(k => k.Value == display.keyframe));
-                            else if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))
-                            {
-                                KeyValuePair<float, Keyframe> lastSelected = _selectedKeyframes.LastOrDefault(k => k.Value.parent == display.keyframe.parent);
-                                if (lastSelected.Value != null)
-                                {
-                                    KeyValuePair<float, Keyframe> selectingNow = display.keyframe.parent.keyframes.First(k => k.Value == display.keyframe);
-                                    float minTime;
-                                    float maxTime;
-                                    if (lastSelected.Key < selectingNow.Key)
-                                    {
-                                        minTime = lastSelected.Key;
-                                        maxTime = selectingNow.Key;
-                                    }
-                                    else
-                                    {
-                                        minTime = selectingNow.Key;
-                                        maxTime = lastSelected.Key;
-                                    }
-                                    SelectAddKeyframes(display.keyframe.parent.keyframes.Where(k => k.Key > minTime && k.Key < maxTime));
-                                    SelectAddKeyframes(selectingNow);
-                                }
-                                else
-                                    SelectAddKeyframes(display.keyframe.parent.keyframes.First(k => k.Value == display.keyframe));
-                            }
-                            else
-                                SelectKeyframes(display.keyframe.parent.keyframes.First(k => k.Value == display.keyframe));
-
-                            break;
-                        case PointerEventData.InputButton.Right:
-                            SeekPlaybackTime(display.keyframe.parent.keyframes.First(k => k.Value == display.keyframe).Key);
-                            break;
-                        case PointerEventData.InputButton.Middle:
-                            if (Input.GetKey(KeyCode.LeftControl))
-                            {
-                                List<KeyValuePair<float, Keyframe>> toDelete = new List<KeyValuePair<float, Keyframe>>();
-                                if (Input.GetKey(KeyCode.LeftShift))
-                                    toDelete.AddRange(_selectedKeyframes);
-                                KeyValuePair<float, Keyframe> kPair = display.keyframe.parent.keyframes.FirstOrDefault(k => k.Value == display.keyframe);
-                                if (kPair.Value != null)
-                                    toDelete.Add(kPair);
-                                if (toDelete.Count != 0)
-                                {
-#if FEATURE_UNDO
-                                    UndoPushAction();
-#endif
-                                    DeleteKeyframes(toDelete);
-                                    _tooltip.transform.parent.gameObject.SetActive(false);
-                                }
-                            }
-                            break;
-                    }
-                };
-
-                DragHandler dragHandler = display.gameObject.AddComponent<DragHandler>();
-                dragHandler.onBeginDrag = e =>
-                {
-                    if (Input.GetKey(KeyCode.LeftAlt) == false)
-                        return;
-                    Vector2 localPoint;
-                    if (RectTransformUtility.ScreenPointToLocalPointInRectangle(_keyframesContainer, e.position, e.pressEventCamera, out localPoint))
-                    {
-                        _selectedKeyframesXOffset.Clear();
-                        foreach (KeyValuePair<float, Keyframe> selectedKeyframe in _selectedKeyframes)
-                        {
-                            KeyframeDisplay selectedDisplay = _displayedKeyframes.Find(d => d.keyframe == selectedKeyframe.Value);
-                            _selectedKeyframesXOffset.Add(selectedDisplay, ((RectTransform)selectedDisplay.gameObject.transform).anchoredPosition.x - localPoint.x);
-                        }
-                    }
-                    if (_selectedKeyframesXOffset.Count != 0)
-                        isPlaying = false;
-                    e.Reset();
-                };
-
-                dragHandler.onDrag = e =>
-                {
-                    if (_selectedKeyframesXOffset.Count == 0)
-                        return;
-
-#if FEATURE_UNDO
-                    UndoPushAction();
-#endif
-                    Vector2 localPoint;
-                    if (RectTransformUtility.ScreenPointToLocalPointInRectangle(_keyframesContainer, e.position, e.pressEventCamera, out localPoint))
-                    {
-                        float x = localPoint.x;
-                        foreach (KeyValuePair<KeyframeDisplay, float> pair in _selectedKeyframesXOffset)
-                        {
-                            float localX = localPoint.x + pair.Value;
-                            if (localX < 0f)
-                                x = localPoint.x - localX;
-                        }
-
-                        if (Input.GetKey(KeyCode.LeftShift))
-                        {
-                            float time = 10f * x / (_baseGridWidth * _zoomLevel);
-                            float beat = _blockLength / _divisions;
-                            float mod = time % beat;
-                            if (mod / beat > 0.5f)
-                                time += beat - mod;
-                            else
-                                time -= mod;
-                            x = (time * _baseGridWidth * _zoomLevel) / 10f - _selectedKeyframesXOffset[display];
-                        }
-
-                        foreach (KeyValuePair<KeyframeDisplay, float> pair in _selectedKeyframesXOffset)
-                        {
-                            RectTransform rt = ((RectTransform)pair.Key.gameObject.transform);
-                            rt.anchoredPosition = new Vector2(x + pair.Value, rt.anchoredPosition.y);
-                        }
-                    }
-                    e.Reset();
-                };
-
-                dragHandler.onEndDrag = e =>
-                {
-                    if (_selectedKeyframesXOffset.Count == 0)
-                        return;
-                    foreach (KeyValuePair<KeyframeDisplay, float> pair in _selectedKeyframesXOffset)
-                    {
-                        RectTransform rt = ((RectTransform)pair.Key.gameObject.transform);
-                        float time = 10f * rt.anchoredPosition.x / (_baseGridWidth * _zoomLevel);
-                        MoveKeyframe(pair.Key.keyframe, time);
-
-                        int index = _selectedKeyframes.FindIndex(k => k.Value == pair.Key.keyframe);
-                        if (index != -1)
-                            _selectedKeyframes[index] = new KeyValuePair<float, Keyframe>(time, pair.Key.keyframe);
-                    }
-
-                    e.Reset();
-                    UpdateKeyframeWindow(false);
-                    _selectedKeyframesXOffset.Clear();
-                };  
-
-            return display;
-    }
 
         private void UpdateGridMaterial()
         {
@@ -3314,7 +3186,6 @@ namespace Timeline
                 MoveKeyframe(pair.Value, newTime);
                 _selectedKeyframes[i] = new KeyValuePair<float, Keyframe>(newTime, pair.Value);
             }
-
             UpdateKeyframeWindow(false);
             UpdateGrid();
         }
@@ -3454,7 +3325,7 @@ namespace Timeline
 
                         isAutoGenerating = true;
 
-                        if (currentAutogenAnimType == AutoGenAnimType.FK_ANIM || currentAutogenAnimType == AutoGenAnimType.POS_ANIM) {
+                        if (_currentAutogenAnimType == AutoGenAnimType.TPOS_ANIM || _currentAutogenAnimType == AutoGenAnimType.POS_ANIM) {
                             Logger.LogMessage($"Start Generating for pose");
                         
                             // pose captured                                            
@@ -3475,7 +3346,7 @@ namespace Timeline
                                 }
                             }    
 
-                        } else if (currentAutogenAnimType == AutoGenAnimType.NOR_ANIM) {
+                        } else if (_currentAutogenAnimType == AutoGenAnimType.EMBED_ANIM) {
                             OICharInfo.AnimeInfo _aniInfo = _character.oiCharInfo.animeInfo;                  
                             Animator _animator = _character.charAnimeCtrl.animator;
 
@@ -3737,9 +3608,7 @@ namespace Timeline
 				_disposableIK.Dispose();         
 			});
 		}
-#endif
 
-#if FEATURE_AUTOGEN
         // startTime 기준 각 interpolables에 대한 이전 keyframe 정보 획득
         private List<object> GetLastPrevKeyframesFromInterpolables(List<Interpolable> interpolables, float startTime) {
             List<object> valueList = new List<object>(); 
@@ -3865,6 +3734,21 @@ namespace Timeline
                 _undoStack.Push(MakeAction());       
             }
         }
+        
+//         private void RedoPushAction() {          
+//             if (ConfigKeyEnableUndoRedo.Value) {
+// #if FEATURE_UNDO_DEBUG
+//                 Logger.LogMessage("RedoPushAction");
+// #endif
+//                 if (_redoStack.Count > 0) {
+//                     TransactionData transactionData = _redoStack.Peek();
+//                     if (transactionData.ctrlInfo != _selectedOCI) {
+//                         _redoStack.Clear();
+//                     }
+//                 }
+//                 _redoStack.Push(MakeAction());   
+//             }
+//         }
 
         private void UndoPopupAction(int type)   // type 0: undo, type 1: redo
         {   
@@ -3894,38 +3778,47 @@ namespace Timeline
 
                     XmlDocument doc = new XmlDocument();
                     try
-                    {
-                        doc.LoadXml(transactionData.data);
-               
+                    {   
+                        TransactionData currentTransactionData = null;
+                        currentTransactionData = MakeAction();
+
                         // 이전 interpolable 정보 clean
                         _selectedInterpolables.Clear();
                         _selectedKeyframes.Clear();
-
+                        // 이전 _selectedOCI 에 할당된 모든 interpolable 삭제
                         List<Interpolable> temp_oci_Interpolables = new List<Interpolable>();
                         foreach (KeyValuePair<int, Interpolable> pair in _interpolables) {
                             if(pair.Value.oci == _selectedOCI) {
                                 temp_oci_Interpolables.Add(pair.Value);
                             }
                         }   
-
                         foreach (Interpolable interpolable in temp_oci_Interpolables) {
                             RemoveInterpolableUndo(interpolable);
-                        }                        
-
-                        // 신규 interpolable 정보 update
+                        }           
+                        
+                        // 신규 정보 획득
+                        doc.LoadXml(transactionData.data);
+               
+                        // 신규 update
                         ReadInterpolableTree(doc.FirstChild, new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).ToList(), _selectedOCI);
        
-                        if (type == 0) {     
-                            _redoStack.Push(_undoStack.Pop());
+                        if (type == 0) {
+                            _undoStack.Pop(); 
+                            _redoStack.Push(currentTransactionData);
                         }
-                        else { 
-                            _undoStack.Push(_redoStack.Pop());
+                        else {
+                            _redoStack.Pop();
+                            _undoStack.Push(currentTransactionData);
                         }
                     }
                     catch (Exception ex)
                     {
+                        Logger.LogMessage($"Exception: {ex.Message}");
                         // Console.WriteLine("exception " + ex.Message);
                     }
+
+                    // UnityEngine.Debug.Log($">> UndoPopupAction {_undoStack.Count}, {_redoStack.Count}");
+
 
 #if FEATURE_UNDO_DEBUG
                     Logger.LogMessage("UndoPopupAction");
@@ -3936,6 +3829,7 @@ namespace Timeline
             }
         }
 #endif
+
         private List<KeyValuePair<float, Keyframe>>  AddKeyframes(List<Interpolable> interpolables, float time)
         {
             Keyframe keyframe;
@@ -3990,6 +3884,7 @@ namespace Timeline
             return JsonUtility.ToJson(sfx);
         }
 #endif
+#if FEATURE_AUTOGEN
         private KeyValuePair<float, Keyframe> AddKeyframe(Interpolable interpolable, float time)
         {
             Keyframe keyframe;
@@ -4011,7 +3906,26 @@ namespace Timeline
 
             return keyValuePair;
         }
-
+#else
+        private void AddKeyframe(Interpolable interpolable, float time)
+        {
+            try
+            {
+                Keyframe keyframe;
+                KeyValuePair<float, Keyframe> pair = interpolable.keyframes.LastOrDefault(k => k.Key < time);
+                if (pair.Value != null)
+                    keyframe = new Keyframe(interpolable.GetValue(), interpolable, new AnimationCurve(pair.Value.curve.keys));
+                else
+                    keyframe = new Keyframe(interpolable.GetValue(), interpolable, AnimationCurve.Linear(0f, 0f, 1f, 1f));
+                interpolable.keyframes.Add(time, keyframe);
+                UpdateGrid();
+            }
+            catch (Exception e)
+            {
+                Logger.LogError("couldn't add keyframe to interpolable with value:" + interpolable + "\n" + e);
+            }
+        }
+#endif
         private void CopyKeyframes()
         {
             _copiedKeyframes.Clear();
@@ -4145,7 +4059,7 @@ namespace Timeline
                 if (format == "*.wav")
                 {
                     UpdateSingleFilesPanel(_selectedFileSoundFolder, format);
-                }
+        }
                 else
                 {
                     UpdateSingleFilesPanel(_selectedFileXmlFolder, format);
@@ -4169,8 +4083,8 @@ namespace Timeline
                     .GetFileSystemEntries(rootPath, "*", SearchOption.TopDirectoryOnly)
                     .Where(f =>
                         Directory.Exists(f) || // 폴더 허용
-                        f.EndsWith(".wav", StringComparison.OrdinalIgnoreCase) ||
-                        f.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase)
+                        f.EndsWith(".wav", StringComparison.OrdinalIgnoreCase)
+                        // f.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase)
                     )
                     .ToList();
 
@@ -4212,11 +4126,11 @@ namespace Timeline
 
                 display.toggle.gameObject.SetActive(true);
                 display.toggle.onValueChanged = new Toggle.ToggleEvent();
-                display.toggle.onValueChanged.AddListener(b =>
-                {
-                    if (display.toggle.isOn)
-                        _singleFileNameField.text = fileName;
-                });
+                // display.toggle.onValueChanged.AddListener(b =>
+                // {
+                //     if (display.toggle.isOn)
+                //         _singleFileNameField.text = fileName;
+                // });
                 display.filePath = files[i];
                 display.pointerDownHandler.onPointerDown = (e) =>
                 {
@@ -4235,6 +4149,8 @@ namespace Timeline
                     {
                         _selectedFileWithExtention = Path.GetFileName(display.filePath);
                     }
+                     _singleFileNameField.text = _selectedFileWithExtention;
+
                 };                   
                 display.text.text = fileName;
             }
@@ -4268,10 +4184,10 @@ namespace Timeline
                 if (_selectedFileWithExtention.Contains(".xml"))
                 {
                     string path = _selectedFileXmlFolder + "\\" + _selectedFileWithExtention;
-                    if (File.Exists(path))
-                    {
-                        LoadSingle(path);
-                        Logger.LogMessage("File was loaded successfully.");
+                if (File.Exists(path))
+                {
+                    LoadSingle(path);
+                    Logger.LogMessage("File was loaded successfully.");
 
 #if FEATURE_AUTOGEN
                         _duration = 10.0f;
@@ -4298,10 +4214,12 @@ namespace Timeline
                         File.WriteAllBytes(soundFilePath, File.ReadAllBytes(path));
 
                         SoundItem SoundItem = new SoundItem();
-                        // SoundItem.sceneName = _uuid + "";
                         SoundItem.fileName = soundFileName;
                         SoundItem.volume = 1.0f;
 
+#if FEATURE_UNDO
+                        UndoPushAction();
+#endif
                         AddSoundToKeyframe(_keepSoundInterpolable.Key, _keepSoundInterpolable.Value, SoundItem);
                         UpdateGrid();
 #endif
@@ -4365,7 +4283,7 @@ namespace Timeline
                         if (result)
                         {
                             File.Delete(path);
-                            _singleFileNameField.text = "";                            
+                            _singleFileNameField.text = "";
 
                             UpdateSingleFilesPanel(_selectedFileXmlFolder);
                             Logger.LogMessage("File was deleted successfully.");
@@ -4439,7 +4357,7 @@ namespace Timeline
 
 #endif
 
-#endregion
+        #endregion
 
         #region Keyframe Window
         private void OpenKeyframeWindow()
@@ -4901,15 +4819,15 @@ namespace Timeline
         private void DeleteSelectedKeyframes()
         {
             UIUtility.DisplayConfirmationDialog(result =>
-                {
-                    if (result)
+                    {
+                        if (result)
                     {
 #if FEATURE_UNDO
                         UndoPushAction();
 #endif
-                        DeleteKeyframes(_selectedKeyframes);
+                            DeleteKeyframes(_selectedKeyframes);
                     }
-                }, _selectedKeyframes.Count == 1 ? "Are you sure you want to delete this Keyframe?" : "Are you sure you want to delete these Keyframes?"
+                    }, _selectedKeyframes.Count == 1 ? "Are you sure you want to delete this Keyframe?" : "Are you sure you want to delete these Keyframes?"
             );
         }
 
@@ -4975,20 +4893,6 @@ namespace Timeline
             UpdateGrid();
             UpdateKeyframeWindow(false);
         }
-
-#if FIXED_096_DEBUG
-        private void SetObjectCtrlDirty(ObjectCtrlInfo objectCtrlInfo){
-            int hashcode = 0;
-
-            if (objectCtrlInfo != null)
-                hashcode = objectCtrlInfo.GetHashCode();
-
-            ObjectCtrlItem objectCtrlItem = null;
-            if (_ociControlMgmt.TryGetValue(hashcode, out objectCtrlItem)) {
-                objectCtrlItem.dirty = true;
-            }
-        }
-#endif
 
         private void SaveKeyframeTime(float time)
         {
@@ -5075,9 +4979,7 @@ namespace Timeline
                     return;
                 }
             }
-
             _keyframeValueText.text = v != null ? v.ToString() : "null";
-
         }
 
         private void UpdateCurve()
@@ -5127,7 +5029,6 @@ namespace Timeline
                     display = new CurveKeyframeDisplay();
                     display.gameObject = GameObject.Instantiate(_curveKeyframePrefab);
                     display.gameObject.hideFlags = HideFlags.None;
-
                     display.image = display.gameObject.transform.Find("RawImage").GetComponent<RawImage>();
 
                     display.gameObject.transform.SetParent(_curveContainer.transform);
@@ -5281,7 +5182,7 @@ namespace Timeline
 
         #endregion
 
-#endregion
+        #endregion
 
         #region Saves
 
@@ -5324,42 +5225,28 @@ namespace Timeline
 #endif
 #if FEATURE_SOUND
             _uuid = Guid.NewGuid();
-            UnityEngine.Debug.Log($"timeline _uuid {_uuid}");
             CreateSoundToTemporaryCache();
-#endif
-            PluginData data = ExtendedSave.GetSceneExtendedDataById(_extSaveKey);
-            if (data == null)
-                return;
-            XmlDocument doc = new XmlDocument();
-            doc.LoadXml((string)data.data["sceneInfo"]);
-            XmlNode node = doc.FirstChild;
-            if (node == null)
-                return;
+#endif            
+            var node = GetSceneInfo() ?? new XmlDocument().CreateElement("root");
             SceneLoad(path, node);
         }
-
+            
         private void OnSceneImport(string path)
+        {
+            var node = GetSceneInfo();
+            if (node == null)
+                return;
+            SceneImport(path, node);           
+        }
+
+        private static XmlNode GetSceneInfo()
         {
             PluginData data = ExtendedSave.GetSceneExtendedDataById(_extSaveKey);
             if (data == null)
-                return;
+                return null;
             XmlDocument doc = new XmlDocument();
             doc.LoadXml((string)data.data["sceneInfo"]);
-            XmlNode node = doc.FirstChild;
-            if (node == null)
-                return;
-            SceneImport(path, node);
-#if FEATURE_SOUND
-            PluginData data1 = ExtendedSave.GetSceneExtendedDataById(_extSaveKey2);
-            if (data1 == null)
-                return;
-            XmlDocument doc1 = new XmlDocument();
-            doc.LoadXml((string)data1.data["sceneSoundInfo"]);
-            XmlNode node1 = doc1.FirstChild;
-            if (node1 == null)
-                return;
-            // create sound
-#endif
+            return doc.FirstChild;
         }
 
         private void OnSceneSave(string path)
@@ -5367,6 +5254,7 @@ namespace Timeline
             using (StringWriter stringWriter = new StringWriter())
             using (XmlTextWriter xmlWriter = new XmlTextWriter(stringWriter))
             {
+
                 xmlWriter.WriteStartElement("root");
                 SceneWrite(path, xmlWriter);
                 xmlWriter.WriteEndElement();
@@ -5557,6 +5445,8 @@ namespace Timeline
 
         private void ReadInterpolableTree(XmlNode groupNode, List<KeyValuePair<int, ObjectCtrlInfo>> dic, ObjectCtrlInfo overrideOci = null, GroupNode<InterpolableGroup> group = null)
         {
+            // UnityEngine.Debug.Log($">> ReadInterpolableTree");
+
             foreach (XmlNode interpolableNode in groupNode.ChildNodes)
             {
                 switch (interpolableNode.Name)
@@ -5607,6 +5497,8 @@ namespace Timeline
             Interpolable interpolable = null;
             try
             {
+                // UnityEngine.Debug.Log($">> interpolableNode.ChildNodes {interpolableNode.ChildNodes.Count}");
+
                 if (interpolableNode.Name == "interpolable")
                 {
                     string ownerId = interpolableNode.Attributes["owner"].Value;
@@ -5631,12 +5523,15 @@ namespace Timeline
                         interpolable = new Interpolable(oci, model);
 
 #if FEATURE_SOUND
-                    if (model.id == "SoundSFXControl") {
+                    if (model.id == "SoundSFXControl" || model.id == "SoundBGControl") {
                         interpolable.instantAction = true;
-                        _instantActionInterpolables.Add(interpolable.oci.GetHashCode(), interpolable);
-                    } else if (model.id == "SoundBGControl") {
-                        interpolable.instantAction = true;
-                        _instantActionInterpolables.Add(interpolable.oci.GetHashCode(), interpolable);
+                        int key = interpolable.GetHashCode();
+
+                        if (!_instantActionInterpolables.ContainsKey(key))
+                        {
+                            _instantActionInterpolables.Add(key, interpolable);
+                        }
+                        
                     } else {
                         interpolable.instantAction = false;
                     }
@@ -5904,19 +5799,19 @@ namespace Timeline
             if (go == null || !Input.GetKey(KeyCode.LeftAlt))
                 return;
 
-            var interpolables = _self._interpolables.Where(i => i.Value.parameter is GuideObject g && g == go).Select(pair => pair.Value).ToArray();
+            var interpolables = _self._interpolables.Where(i => i.Value.parameter is GuideObject g && g == go).Select( pair => pair.Value ).ToArray();
 
             if (interpolables.Length <= 0)
                 return;
 
             int select = 0;
 
-            if (interpolables.Length > 1)
+            if(interpolables.Length > 1)
             {
                 //If there is a mode selected in the studio, select that interpolation.
                 string keyword = null;
 
-                switch (manager.mode)
+                switch(manager.mode)
                 {
                     case 0:
                         keyword = "Position";
@@ -5931,10 +5826,10 @@ namespace Timeline
                         break;
                 }
 
-                if (keyword != null)
+                if( keyword != null )
                 {
-                    for (int i = 0; i < interpolables.Length; ++i)
-                        if (interpolables[i].name.Contains(keyword))
+                    for( int i = 0; i < interpolables.Length; ++i )
+                        if( interpolables[i].name.Contains(keyword) )
                         {
                             select = i;
                             break;
@@ -5976,7 +5871,7 @@ namespace Timeline
             {
                 Stop();
                 _self.isAutoGenerating = false;
-                currentAutogenAnimType = AutoGenAnimType.POS_ANIM;
+                _currentAutogenAnimType = AutoGenAnimType.POS_ANIM;
                 return true;
             }
         }
@@ -6004,9 +5899,9 @@ namespace Timeline
                     OICharInfo.AnimeInfo _aniInfo = _character.oiCharInfo.animeInfo;  
 
                     if (_aniInfo.category == 0 && _aniInfo.group == 0 && _aniInfo.no == 0) {
-                        currentAutogenAnimType = AutoGenAnimType.FK_ANIM;
+                        _currentAutogenAnimType = AutoGenAnimType.TPOS_ANIM;
                     } else {
-                        currentAutogenAnimType = AutoGenAnimType.NOR_ANIM;
+                        _currentAutogenAnimType = AutoGenAnimType.EMBED_ANIM;
                     }
                 }
             }
@@ -6021,7 +5916,8 @@ namespace Timeline
 #endif
             {
                 IEnumerable<Type> ociTypes = Assembly.GetAssembly(typeof(ObjectCtrlInfo)).GetTypes().Where(myType => myType.IsClass && !myType.IsAbstract && myType.IsSubclassOf(typeof(ObjectCtrlInfo)));
-                foreach(Type t in ociTypes)
+
+                foreach (Type t in ociTypes)
                 {
                     try
                     {
@@ -6084,6 +5980,22 @@ namespace Timeline
 
                     _self._selectedOCI = objectCtrlInfo;
 
+                    OCIChar _character = _self._selectedOCI as OCIChar;
+
+                    if (_character != null)
+                    {
+                        OICharInfo.AnimeInfo _aniInfo = _character.oiCharInfo.animeInfo;
+
+                        if (_aniInfo.category == 0 && _aniInfo.group == 0 && _aniInfo.no == 0)
+                        {
+                            _currentAutogenAnimType = AutoGenAnimType.TPOS_ANIM;
+                        }
+                        else
+                        {
+                            _currentAutogenAnimType = AutoGenAnimType.EMBED_ANIM;
+                        }
+                    }
+                    
                     _self.UpdateInterpolablesView();
                     _self.UpdateKeyframeWindow(false);                               
                 }
@@ -6148,6 +6060,6 @@ namespace Timeline
             }
         }
 #endif
-#endregion
+        #endregion
     }
 }

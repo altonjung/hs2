@@ -1,16 +1,12 @@
 ﻿using UnityEngine;
-using System.Collections;
-using System.Collections.Generic;
 
 namespace Timeline
 {
     public class Keyframe
     {
         public object value;
-        public Interpolable parent;
+        public readonly Interpolable parent;
         public AnimationCurve curve;
-
-        public Timeline.KeyframeDisplay keyframeDisplay;
 
         public Keyframe(object value, Interpolable parent, AnimationCurve curve)
         {
@@ -25,5 +21,5 @@ namespace Timeline
             parent = other.parent;
             curve = new AnimationCurve(other.curve.keys);
         }
-    }   
+    }
 }
