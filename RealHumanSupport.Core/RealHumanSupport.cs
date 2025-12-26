@@ -66,7 +66,7 @@ namespace RealHumanSupport
     {
         #region Constants
         public const string Name = "RealHumanSupport";
-        public const string Version = "0.9.0.2";
+        public const string Version = "0.9.0.3";
         public const string GUID = "com.alton.illusionplugins.RealHuman";
         internal const string _ownerId = "RealHumanSupport";
 #if KOIKATSU || AISHOUJO || HONEYSELECT2
@@ -1096,26 +1096,26 @@ namespace RealHumanSupport
                     strong_texture = _self._bodyStrongMale_A_BumpMap2;
                 }
 
-                float left_shin_bs = -99.99f;
-                float left_calf_bs = -99.99f;
-                float left_butt_bs = -99.99f;
-                float left_thigh_ft_bs = -99.99f;
-                float left_thigh_bk_bs = -99.99f;
-                float left_thigh_inside_bs = -99.99f;
-                float left_spine_bs = -99.99f;
-                float left_neck_bs = -99.99f;
+                float left_shin_bs = 0.0f;
+                float left_calf_bs = 0.0f;
+                float left_butt_bs = 0.0f;
+                float left_thigh_ft_bs = 0.0f;
+                float left_thigh_bk_bs = 0.0f;
+                float left_thigh_inside_bs = 0.0f;
+                float left_spine_bs = 0.0f;
+                float left_neck_bs = 0.0f;
 
-                float right_shin_bs = -99.99f;
-                float right_calf_bs = -99.99f;            
-                float right_butt_bs = -99.99f;
-                float right_thigh_ft_bs = -99.99f;
-                float right_thigh_bk_bs = -99.99f;
-                float right_thigh_inside_bs = -99.99f;
-                float right_spine_bs = -99.99f;
-                float right_neck_bs = -99.99f;
+                float right_shin_bs = 0.0f;
+                float right_calf_bs = 0.0f;            
+                float right_butt_bs = 0.0f;
+                float right_thigh_ft_bs = 0.0f;
+                float right_thigh_bk_bs = 0.0f;
+                float right_thigh_inside_bs = 0.0f;
+                float right_spine_bs = 0.0f;
+                float right_neck_bs = 0.0f;
 
-                float spine_bs = -99.99f;            
-                float neck_bs = -99.99f;           
+                float spine_bs = 0.0f;            
+                float neck_bs = 0.0f;           
 
                 float bumpscale = 0.0f;
 
@@ -1126,16 +1126,17 @@ namespace RealHumanSupport
                     {   // 뒷방향
                         bumpscale = Math.Min(Remap(fk_left_thigh._front, 0.0f, 120.0f, 0.1f, 1.0f), 1.0f);                     
                         left_butt_bs += bumpscale * 0.7f;
-                        left_thigh_bk_bs += bumpscale * 0.7f;                         
+                        left_thigh_bk_bs += bumpscale * 0.5f;                         
                     } 
                     else
                     {   // 앞방향
-                        bumpscale = Math.Min(Remap(Math.Abs(fk_left_thigh._front), 0.0f, 120.0f, 0.0f, 1.0f), 1.0f);
-                        left_thigh_ft_bs += bumpscale * 0.7f; 
-                        if (fk_left_thigh._front < -70.0f) {                            
+                        float angle = Math.Abs(fk_right_thigh._front);
+                        bumpscale = Math.Min(Remap(angle, 0.0f, 120.0f, 0.0f, 1.0f), 1.0f);
+                        left_thigh_ft_bs += bumpscale * 0.5f; 
+                        if (angle >= 20.0f) {
                             // 내전근 강조 
-                            left_thigh_bk_bs += Math.Min(Remap(Math.Abs(fk_left_thigh._front), 70.0f, 150.0f, 0.5f, 1.0f), 1.0f);
-
+                            left_thigh_bk_bs += Math.Min(Remap(angle, 20.0f, 120.0f, 0.2f, 1.0f), 1.0f);
+                            left_thigh_inside_bs += bumpscale * 0.5f;
                             // 허벅지 open 여부 확인
                         }
                     }
@@ -1144,48 +1145,53 @@ namespace RealHumanSupport
                     {   // 뒷방향      
                         bumpscale = Math.Min(Remap(fk_right_thigh._front, 0.0f, 120.0f, 0.1f, 1.0f), 1.0f);
                         right_butt_bs += bumpscale * 0.7f;
-                        right_thigh_bk_bs += bumpscale * 0.7f; 
+                        right_thigh_bk_bs += bumpscale * 0.5f; 
                     }  
                     else
                     {   // 앞방향
-                        bumpscale = Math.Min(Remap(Math.Abs(fk_right_thigh._front), 0.0f, 120.0f, 0.0f, 1.0f), 1.0f);
-                        right_thigh_ft_bs += bumpscale * 0.7f;
-                        if (fk_right_thigh._front < -70.0f) {      
+                        float angle = Math.Abs(fk_right_thigh._front);
+                        bumpscale = Math.Min(Remap(angle, 0.0f, 120.0f, 0.0f, 1.0f), 1.0f);
+                        right_thigh_ft_bs += bumpscale * 0.5f;
+                        if (angle >= 20.0f) {      
                             // 내전근 강조                      
-                            right_thigh_bk_bs += Math.Min(Remap(Math.Abs(fk_right_thigh._front), 70.0f, 150.0f, 0.5f, 1.0f), 1.0f);
-
+                            right_thigh_bk_bs += Math.Min(Remap(angle, 20.0f, 120.0f, 0.2f, 1.0f), 1.0f);
+                            right_thigh_inside_bs += bumpscale * 0.5f;
                             // 허벅지 open 여부 확인
                         }
                     }
                     
             // 무릎 왼쪽
-                    if (fk_left_knee._front >= 0.0f)
-                    {   // 뒷방향       
+                    // 허벅지 기준 무릅이 뒷방향으로 굽힘
+                    if (fk_left_knee._front > fk_left_thigh._front) //if (fk_left_knee._front >= 0.0f)
+                    { 
                         float angle = GetRelativePosition(fk_left_thigh._front, fk_left_knee._front);
                         bumpscale = Math.Min(Remap(angle, 0.0f, 90.0f, 0.1f, 1.0f), 1.0f);
                         left_butt_bs += bumpscale * 0.3f;
                         left_thigh_bk_bs += bumpscale * 0.3f;
                         left_thigh_ft_bs += bumpscale * 0.3f;
                         
-                        if (angle > 90)  {
-                            bumpscale = Math.Min(Remap(angle, 90.0f, 130.0f, 0.5f, 1.0f), 1.0f);
-                            left_shin_bs += bumpscale * 0.8f;
-                            left_thigh_inside_bs += bumpscale * 0.8f;
+                        if (angle >= 110)  {
+                            bumpscale = Math.Min(Remap(angle, 110.0f, 160.0f, 0.2f, 1.0f), 1.0f);
+                            left_shin_bs += bumpscale * 0.5f;
+                            left_thigh_inside_bs += bumpscale * 0.9f;
+                            left_thigh_bk_bs += bumpscale * 0.5f;
                         }
                     }
             // 무릎 오른쪽
-                    if (fk_right_knee._front > 0.0f)
-                    {   // 뒷방향      
+                    // 허벅지 기준 무릅이 뒷방향으로 굽힘
+                    if (fk_right_knee._front > fk_right_thigh._front)
+                    {  
                         float angle = GetRelativePosition(fk_right_thigh._front, fk_right_knee._front);
                         bumpscale = Math.Min(Remap(angle, 0.0f, 90.0f, 0.1f, 1.0f), 1.0f);
                         right_butt_bs += bumpscale * 0.3f;                        
                         right_thigh_ft_bs += bumpscale * 0.3f;
                         right_thigh_bk_bs += bumpscale * 0.3f;
 
-                        if (angle > 90)  {
-                            bumpscale = Math.Min(Remap(angle, 90.0f, 130.0f, 0.5f, 1.0f), 1.0f);
-                            right_shin_bs += bumpscale * 0.8f;
-                            right_thigh_inside_bs += bumpscale * 0.8f;
+                        if (angle >= 110)  {
+                            bumpscale = Math.Min(Remap(angle, 110.0f, 160.0f, 0.2f, 1.0f), 1.0f);
+                            right_shin_bs += bumpscale * 0.5f;
+                            right_thigh_inside_bs += bumpscale * 0.9f;
+                            right_thigh_bk_bs += bumpscale * 0.5f;
                         }
                     }
 
@@ -1193,10 +1199,10 @@ namespace RealHumanSupport
                     if (ociChar.oiCharInfo.enableIK) {          
                         if (lk_left_foot._front > 0.0f)
                         {   // 뒷방향
-                            bumpscale = Math.Min(Remap(lk_left_foot._front, 0.0f, 60.0f, 0.1f, 1f), 1f);
-                            left_shin_bs += bumpscale * 0.5f;
+                            bumpscale = Math.Min(Remap(lk_left_foot._front, 0.0f, 90.0f, 0.1f, 1f), 1f);
+                            left_shin_bs += bumpscale * 0.3f;
                             left_thigh_ft_bs += bumpscale * 0.2f;
-                            left_thigh_bk_bs += bumpscale * 0.15f;
+                            left_thigh_bk_bs += bumpscale * 0.2f;
                             left_thigh_inside_bs += bumpscale * 0.2f;
                             left_calf_bs += bumpscale * 1.0f;
 
@@ -1206,10 +1212,10 @@ namespace RealHumanSupport
 
                         if (lk_right_foot._front > 0.0f)
                         {   // 뒷방향         
-                            bumpscale = Math.Min(Remap(lk_right_foot._front, 0.0f, 60.0f, 0.1f, 1f), 1f);
-                            right_shin_bs += bumpscale * 0.5f;
+                            bumpscale = Math.Min(Remap(lk_right_foot._front, 0.0f, 90.0f, 0.1f, 1f), 1f);
+                            right_shin_bs += bumpscale * 0.3f;
                             right_thigh_ft_bs += bumpscale * 0.2f;
-                            right_thigh_bk_bs += bumpscale * 0.15f;
+                            right_thigh_bk_bs += bumpscale * 0.2f;
                             right_thigh_inside_bs += bumpscale * 0.2f;
                             right_calf_bs += bumpscale * 1.0f;                                           
                             // TODO
@@ -1217,25 +1223,27 @@ namespace RealHumanSupport
                         }
                     } else if (ociChar.oiCharInfo.enableFK)
                     {
-                        if (fk_left_foot._front > 0.0f)
-                        {   // 뒷방향       
+                        // 무릅 기준 발목이 뒷방향으로 굽힘
+                        if (fk_left_foot._front > fk_left_knee._front)
+                        {    
                             float angle = GetRelativePosition(fk_left_knee._front, fk_left_foot._front);
-                            bumpscale = Math.Min(Remap(angle, 0.0f, 60.0f, 0.1f, 1f), 1f);
-                            left_shin_bs += bumpscale * 0.4f;
-                            left_thigh_ft_bs += bumpscale * 0.3f;
-                            left_thigh_bk_bs += bumpscale * 0.15f;
+                            bumpscale = Math.Min(Remap(angle, 0.0f, 90.0f, 0.1f, 1f), 1f);
+                            left_shin_bs += bumpscale * 0.3f;
+                            left_thigh_ft_bs += bumpscale * 0.4f;
+                            left_thigh_bk_bs += bumpscale * 0.2f;
                             left_calf_bs += bumpscale * 1.0f;                           
                             // TODO
                             // 발목 강조                  
                         }
 
-                        if (fk_right_foot._front > 0.0f)
+                        // 무릅 기준 발목이 뒷방향으로 굽힘
+                        if (fk_right_foot._front > fk_right_knee._front)
                         {   // 뒷방향      
                             float angle = GetRelativePosition(fk_right_knee._front, fk_right_foot._front);
-                            bumpscale = Math.Min(Remap(angle, 0.0f, 60.0f, 0.1f, 1f), 1f);
-                            right_shin_bs += bumpscale * 0.4f;
-                            right_thigh_ft_bs += bumpscale * 0.3f;
-                            right_thigh_bk_bs += bumpscale * 0.15f;
+                            bumpscale = Math.Min(Remap(angle, 0.0f, 90.0f, 0.1f, 1f), 1f);
+                            right_shin_bs += bumpscale * 0.3f;
+                            right_thigh_ft_bs += bumpscale * 0.4f;
+                            right_thigh_bk_bs += bumpscale * 0.2f;
                             right_calf_bs += bumpscale * 1.0f;                 
                             // TODO
                             // 발목 강조
@@ -1258,7 +1266,7 @@ namespace RealHumanSupport
                     if (fk_spine02._side > 1.0f)
                     {   // 왼쪽 기울기                                            
                         bumpscale = Math.Min(Remap(fk_spine02._side, 0.0f, 70.0f, 0.0f, 1.0f), 1.0f);
-                        if (left_spine_bs != -99.99f)
+                        if (left_spine_bs != 0.0f)
                             left_spine_bs += -bumpscale * 0.3f;
                         else
                             left_spine_bs = -bumpscale * 0.3f;           
@@ -1266,23 +1274,23 @@ namespace RealHumanSupport
                     else
                     {   // 오른쪽 기울기
                         bumpscale = Math.Min(Remap(Math.Abs(fk_spine02._side), 0.0f, 70.0f, 0.0f, 1.0f), 1.0f);
-                        if (right_spine_bs != -99.99f)
+                        if (right_spine_bs != 0.0f)
                             right_spine_bs += -bumpscale * 0.3f;    
                         else
                             right_spine_bs = -bumpscale * 0.3f; 
                     }
 
             // 목
-                    if (fk_head._front > 1.0f)
-                    {   // 앞으로 숙이기                
-                        float angle = GetRelativePosition(fk_neck._front, fk_head._front);
-                        bumpscale = Math.Min(Remap(angle, 0.0f, 70.0f, 0.0f, 1.0f), 1.0f);
-                        neck_bs = -bumpscale * 0.9f;
-                    } else
-                    {   // 뒤로 숙이기
+                    if (fk_neck._front > fk_head._front)
+                    {   // 목 기준 머리가 뒷방향으로 굽힘               
                         float angle = GetRelativePosition(fk_neck._front, fk_head._front);
                         bumpscale = Math.Min(Remap(angle, 0.0f, 50.0f, 0.0f, 1.0f), 1.0f);
                         neck_bs = bumpscale * 0.9f;    
+                    } else 
+                    {   // 목 기준 머리가 앞방향으로 굽힘
+                        float angle = GetRelativePosition(fk_neck._front, fk_head._front);
+                        bumpscale = Math.Min(Remap(angle, 0.0f, 70.0f, 0.0f, 1.0f), 1.0f);
+                        neck_bs = -bumpscale * 0.9f;                        
                     }
 
                     if (fk_head._side > 1.0f)
@@ -1313,74 +1321,76 @@ namespace RealHumanSupport
                 }
 
             // 왼쪽 강조
-                if (left_neck_bs != -99.99f)
+                if (left_neck_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(220, 90, 40, 80, Math.Min(left_neck_bs, 2.0f))); 
+                    areas.Add(InitBArea(220, 90, 35, 80, Math.Min(left_neck_bs, 2.0f))); 
                 }
-                if (left_spine_bs != -99.99f)
+                if (left_spine_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(150, 520, 150, 160, Math.Min(left_spine_bs, 2.0f)));   
+                    areas.Add(InitBArea(150, 520, 145, 160, Math.Min(left_spine_bs, 2.0f)));   
                 }                
-                if (left_thigh_ft_bs != -99.99f)
+                if (left_thigh_ft_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(365, 970, 100, 210, Math.Min(left_thigh_ft_bs, 2.0f))); // 앞 허벅지        
+                    areas.Add(InitBArea(365, 970, 95, 210, Math.Min(left_thigh_ft_bs, 2.0f))); // 앞 허벅지        
                 }                                                       
-                if (left_thigh_inside_bs != -99.99f)
+                if (left_thigh_inside_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(330, 960, 60, 120, Math.Min(left_thigh_inside_bs, 2.0f))); // 앞 허벅지 인쪽
+                    areas.Add(InitBArea(340, 970, 55, 120, Math.Min(left_thigh_inside_bs, 2.0f))); // 앞 허벅지 인쪽
                 }                 
-                if (left_shin_bs != -99.99f)
+                if (left_shin_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(400, 1450, 160, 300, Math.Min(left_shin_bs, 2.0f))); // 앞 정강이                                        
+                    areas.Add(InitBArea(400, 1450, 115, 300, Math.Min(left_shin_bs, 2.0f))); // 앞 정강이                                        
                 }
-                if (left_thigh_bk_bs != -99.99f)
+                if (left_thigh_bk_bs != 0.0f)
                 { 
-                    areas.Add(InitBArea(660, 1030, 100, 160, Math.Min(left_thigh_bk_bs, 2.0f))); // 뒷 허벅지                        
+                    areas.Add(InitBArea(660, 1030, 95, 160, Math.Min(left_thigh_bk_bs, 2.0f))); // 뒷 허벅지                  
                 }                                      
-                if (left_butt_bs != -99.99f)
+                if (left_butt_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(650, 850, 80, 90, Math.Min(left_butt_bs, 2.0f))); // 뒷 엉덩이                                                
+                    areas.Add(InitBArea(650, 850, 85, 90, Math.Min(left_butt_bs, 2.0f))); // 뒷 엉덩이                                                
                 }        
-                if (left_calf_bs != -99.99f)
+                if (left_calf_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(650, 1230, 60, 80, Math.Min(right_calf_bs, 2.0f))); // 뒷 무릎 강조
-                    areas.Add(InitBArea(670, 1420, 100, 140, Math.Min(left_calf_bs, 2.0f))); // 뒷 종아리 강조                                                     
+                    areas.Add(InitBArea(650, 1230, 55, 80, Math.Min(right_calf_bs, 2.0f))); // 뒷 무릎 강조
+                    areas.Add(InitBArea(670, 1420, 95, 140, Math.Min(left_calf_bs, 2.0f))); // 뒷 종아리 강조                                                     
                 }     
 
             // 오른쪽 강조
-                if (right_neck_bs != -99.99f)
+                if (right_neck_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(300, 90, 40, 80, Math.Min(right_neck_bs, 2.0f)));
+                    areas.Add(InitBArea(300, 90, 35, 80, Math.Min(right_neck_bs, 2.0f)));
                 }   
-                if (right_spine_bs != -99.99f)
+                if (right_spine_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(370, 520, 150, 160, Math.Min(right_spine_bs, 2.0f)));
+                    areas.Add(InitBArea(370, 520, 145, 160, Math.Min(right_spine_bs, 2.0f)));
                 }
-                if (right_thigh_ft_bs != -99.99f)
+                if (right_thigh_ft_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(145, 970, 100, 210, Math.Min(right_thigh_ft_bs, 2.0f))); // 앞 허벅지                         
+                    areas.Add(InitBArea(145, 970, 95, 210, Math.Min(right_thigh_ft_bs, 2.0f))); // 앞 허벅지                         
                 }
-                if (right_thigh_inside_bs != -99.99f)
+                if (right_thigh_inside_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(190, 960, 60, 120, Math.Min(right_thigh_inside_bs, 2.0f))); // 앞 허벅지 안쪽                                
+                    areas.Add(InitBArea(180, 970, 55, 120, Math.Min(right_thigh_inside_bs, 2.0f))); // 앞 허벅지 안쪽                          
                 } 
-                if (right_shin_bs != -99.99f)
+                if (right_shin_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(120, 1450, 160, 300, Math.Min(right_shin_bs, 2.0f))); // 앞 정강이                         
+                    areas.Add(InitBArea(120, 1450, 115, 300, Math.Min(right_shin_bs, 1.2f))); // 앞 정강이                         
                 }
-                if (right_thigh_bk_bs != -99.99f)
+                if (right_thigh_bk_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(900, 1030, 100, 140, Math.Min(right_thigh_bk_bs, 2.0f))); // 뒷 허벅지
+                    areas.Add(InitBArea(900, 1030, 95, 140, Math.Min(right_thigh_bk_bs, 1.5f))); // 뒷 허벅지
                 }                    
-                if (right_butt_bs != -99.99f)
+                if (right_butt_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(920, 850, 80, 90, Math.Min(right_butt_bs, 2.0f))); // 뒷 엉덩이                        
+                    areas.Add(InitBArea(920, 850, 85, 90, Math.Min(right_butt_bs, 1.5f))); // 뒷 엉덩이                        
                 }
-                if (right_calf_bs != -99.99f)
+                if (right_calf_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(920, 1230, 60, 80, Math.Min(right_calf_bs, 2.0f))); // 뒷 무릎 강조
-                    areas.Add(InitBArea(890, 1420, 100, 140, Math.Min(right_calf_bs, 2.0f))); // 뒷 종아리 강조                                                         
+                    areas.Add(InitBArea(920, 1230, 55, 80, Math.Min(right_calf_bs, 2.0f))); // 뒷 무릎 강조
+                    areas.Add(InitBArea(890, 1420, 95, 140, Math.Min(right_calf_bs, 2.0f))); // 뒷 종아리 강조                                                         
                 }
+
+                // UnityEngine.Debug.Log($">> right_thigh_inside_bs {right_thigh_inside_bs}");
 
                 realHumanData.prev_lk_left_foot_rot = lk_left_foot._q;
                 realHumanData.prev_lk_right_foot_rot = lk_right_foot._q;
