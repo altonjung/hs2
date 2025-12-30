@@ -11,6 +11,7 @@
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)AssemblyInfo.cs" />    
     <Compile Include="$(MSBuildThisFileDirectory)RealHumanSupport.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)RealHumanSupportLogic.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="$(MSBuildThisFileDirectory)Resources\Help.txt" />

@@ -148,9 +148,13 @@
       <Private>False</Private>
     </Reference>    
     <Reference Include="UnityEngine.ClothModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
-      <HintPath>C:\games\HoneySelect 2 DX BetterRepack R15\StudioNEOV2_Data\Managed\UnityEngine.ClothModule.dll</HintPath>
+      <HintPath>..\packages\IllusionLibs.HoneySelect2.UnityEngine.ClothModule.2018.4.11.4\lib\net46\UnityEngine.ClothModule.dll</HintPath>
       <Private>False</Private>
-    </Reference>    
+    </Reference>  
+    <Reference Include="UnityEngine.PhysicsModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
+      <HintPath>..\packages\IllusionLibs.KoikatsuSunshine.UnityEngine.PhysicsModule.2019.4.9\lib\net46\UnityEngine.PhysicsModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>       
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Properties\" />
