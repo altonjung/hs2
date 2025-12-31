@@ -17,6 +17,8 @@ using UnityEngine.SceneManagement;
 using UnityEngine.Rendering;
 using KK_PregnancyPlus;
 using System.Threading.Tasks;
+using System.Numerics;
+
 
 
 #if IPA
@@ -64,7 +66,7 @@ namespace RealHumanSupport
     {
         #region Constants
         public const string Name = "RealHumanSupport";
-        public const string Version = "0.9.0.4";
+        public const string Version = "0.9.0.5";
         public const string GUID = "com.alton.illusionplugins.RealHuman";
         internal const string _ownerId = "RealHumanSupport";
 #if KOIKATSU || AISHOUJO || HONEYSELECT2
@@ -158,23 +160,23 @@ namespace RealHumanSupport
         {
             base.Awake();
 
-            EyeShakeActive = Config.Bind("Option", "Eye shake active", true, new ConfigDescription("Enable/Disable"));
+            EyeShakeActive = Config.Bind("Enable", "Eye shaking", true, new ConfigDescription("Enable/Disable"));
 
-            ExBoneColliderActive = Config.Bind("Option", "Extra dynamicBone active", true, new ConfigDescription("Enable/Disable"));
+            ExBoneColliderActive = Config.Bind("Enable", "Extra dynamic Bone", true, new ConfigDescription("Enable/Disable"));
 
-            BreathActive = Config.Bind("Option", "Breath bump effect active", true, new ConfigDescription("Enable/Disable"));
+            BreathActive = Config.Bind("Enable", "Bumping belly", true, new ConfigDescription("Enable/Disable"));
 
-            FaceBumpActive = Config.Bind("Option", "Face bump effect active", true, new ConfigDescription("Enable/Disable"));
+            FaceBumpActive = Config.Bind("Enable", "Bumping face", true, new ConfigDescription("Enable/Disable"));
 
-            BodyBumpActive = Config.Bind("Option", "Body bump effect active", true, new ConfigDescription("Enable/Disable"));
+            BodyBumpActive = Config.Bind("Enable", "Bumping body", true, new ConfigDescription("Enable/Disable"));
 
             BreathInterval = Config.Bind("Breath", "Cycle", 1.5f, new ConfigDescription("Breath Interval", new AcceptableValueRange<float>(1.0f,  5.0f)));;
 
             BreathStrong = Config.Bind("Breath", "Strong", 0.5f, new ConfigDescription("Breath Amplitude", new AcceptableValueRange<float>(0.1f, 1.0f)));
 
-            ExtraBoneScale = Config.Bind("ExtraBone", "Extra bones scale", 1.0f, new ConfigDescription("Extra bone scale", new AcceptableValueRange<float>(0.1f, 10.0f)));
+            ExtraBoneScale = Config.Bind("ExtraCollider", "Scale", 1.0f, new ConfigDescription("Extra collider Scale", new AcceptableValueRange<float>(0.1f, 10.0f)));
 
-            ExtraBoneDebug = Config.Bind("ExtraBone", "Extra bones scale visualize", false, new ConfigDescription("Enable/Disable"));
+            ExtraBoneDebug = Config.Bind("ExtraCollider", "Show", false, new ConfigDescription("Debug Enable/Disable"));
   
             _self = this;
 
@@ -184,6 +186,8 @@ namespace RealHumanSupport
 
             var harmonyInstance = HarmonyExtensions.CreateInstance(GUID);
             harmonyInstance.PatchAll(Assembly.GetExecutingAssembly());
+
+            // UnityEngine.Debug.Log($">> start CheckRotationRoutine");
 
             _CheckRotationRoutine = StartCoroutine(CheckRotationRoutine());
         }
@@ -226,7 +230,7 @@ namespace RealHumanSupport
                 // 팔에 해당하는 콜라이더 클릭 시 제어 시작
                 if (hit.transform.name.Contains("RHTriggerCapsuleObj"))
                 {
-                    UnityEngine.Debug.Log($">> hit Trigger");
+                    // UnityEngine.Debug.Log($">> hit Trigger");
                     _controlKosi = true;
                 }
             }
@@ -350,42 +354,110 @@ namespace RealHumanSupport
         {
             while (true) // 무한 반복
             {
-                if (_selectedOciChar != null && !Input.GetMouseButton(0))
+                if (_selectedOciChar != null)
                 {
-                    if (_ociCharMgmt.TryGetValue(_selectedOciChar.GetHashCode(), out var realHumanData))
-                    {
-                        if (realHumanData.m_skin_body == null || realHumanData.m_skin_head == null)
-                            realHumanData = Logic.GetMaterials(_selectedOciChar, realHumanData);
-
-                        if (
-                            (Logic.GetBoneRotationFromIK(realHumanData.lk_left_foot_bone)._q != realHumanData.prev_lk_left_foot_rot) ||
-                            (Logic.GetBoneRotationFromIK(realHumanData.lk_right_foot_bone)._q != realHumanData.prev_lk_right_foot_rot) ||
-                            (Logic.GetBoneRotationFromFK(realHumanData.fk_left_foot_bone)._q != realHumanData.prev_fk_left_foot_rot) ||
-                            (Logic.GetBoneRotationFromFK(realHumanData.fk_right_foot_bone)._q != realHumanData.prev_fk_right_foot_rot) ||
-                            (Logic.GetBoneRotationFromFK(realHumanData.fk_left_knee_bone)._q != realHumanData.prev_fk_left_knee_rot) ||
-                            (Logic.GetBoneRotationFromFK(realHumanData.fk_right_knee_bone)._q != realHumanData.prev_fk_right_knee_rot) ||
-                            (Logic.GetBoneRotationFromFK(realHumanData.fk_left_thigh_bone)._q != realHumanData.prev_fk_left_thigh_rot) ||
-                            (Logic.GetBoneRotationFromFK(realHumanData.fk_right_thigh_bone)._q != realHumanData.prev_fk_right_thigh_rot) ||                          
-                            (Logic.GetBoneRotationFromFK(realHumanData.fk_spine01_bone)._q != realHumanData.prev_fk_spine01_rot) || 
-                            (Logic.GetBoneRotationFromFK(realHumanData.fk_spine02_bone)._q != realHumanData.prev_fk_spine02_rot) ||
-                            (Logic.GetBoneRotationFromFK(realHumanData.fk_head_bone)._q != realHumanData.prev_fk_head_rot) ||
-                            (Logic.GetBoneRotationFromFK(realHumanData.fk_left_shoulder_bone)._q != realHumanData.prev_fk_left_shoulder_rot) ||
-                            (Logic.GetBoneRotationFromFK(realHumanData.fk_right_shoulder_bone)._q != realHumanData.prev_fk_right_shoulder_rot)
-                        )
+                    if (!Input.GetMouseButton(0)) {
+                        if (_ociCharMgmt.TryGetValue(_selectedOciChar.GetHashCode(), out var realHumanData))
                         {
-                            Logic.SupportBodyBumpEffect(_selectedOciChar.charInfo, realHumanData);
-                        }   
-                    }
-                }                
+                            if (realHumanData.m_skin_body == null || realHumanData.m_skin_head == null)
+                                realHumanData = Logic.GetMaterials(_selectedOciChar, realHumanData);
 
-                yield return new WaitForSeconds(1.0f); // 1.5초 대기
+                            if (
+                                (Logic.GetBoneRotationFromIK(realHumanData.lk_left_foot_bone)._q != realHumanData.prev_lk_left_foot_rot) ||
+                                (Logic.GetBoneRotationFromIK(realHumanData.lk_right_foot_bone)._q != realHumanData.prev_lk_right_foot_rot) ||
+                                (Logic.GetBoneRotationFromFK(realHumanData.fk_left_foot_bone)._q != realHumanData.prev_fk_left_foot_rot) ||
+                                (Logic.GetBoneRotationFromFK(realHumanData.fk_right_foot_bone)._q != realHumanData.prev_fk_right_foot_rot) ||
+                                (Logic.GetBoneRotationFromFK(realHumanData.fk_left_knee_bone)._q != realHumanData.prev_fk_left_knee_rot) ||
+                                (Logic.GetBoneRotationFromFK(realHumanData.fk_right_knee_bone)._q != realHumanData.prev_fk_right_knee_rot) ||
+                                (Logic.GetBoneRotationFromFK(realHumanData.fk_left_thigh_bone)._q != realHumanData.prev_fk_left_thigh_rot) ||
+                                (Logic.GetBoneRotationFromFK(realHumanData.fk_right_thigh_bone)._q != realHumanData.prev_fk_right_thigh_rot) ||                          
+                                (Logic.GetBoneRotationFromFK(realHumanData.fk_spine01_bone)._q != realHumanData.prev_fk_spine01_rot) || 
+                                (Logic.GetBoneRotationFromFK(realHumanData.fk_spine02_bone)._q != realHumanData.prev_fk_spine02_rot) ||
+                                (Logic.GetBoneRotationFromFK(realHumanData.fk_head_bone)._q != realHumanData.prev_fk_head_rot) ||
+                                (Logic.GetBoneRotationFromFK(realHumanData.fk_left_shoulder_bone)._q != realHumanData.prev_fk_left_shoulder_rot) ||
+                                (Logic.GetBoneRotationFromFK(realHumanData.fk_right_shoulder_bone)._q != realHumanData.prev_fk_right_shoulder_rot)
+                            )
+                            {
+                                Logic.SupportBodyBumpEffect(_selectedOciChar.charInfo, realHumanData);
+                            }      
+                        }                        
+                    } 
+                    else
+                    {
+#if FEATURE_FIX_LONGHAIR                        
+                        if (_ociCharMgmt.TryGetValue(_selectedOciChar.GetHashCode(), out var realHumanData1))
+                        {                    
+                            if (realHumanData1.head_bone != null)
+                            {        
+                                PositionData neckData = Logic.GetBoneRotationFromTF(realHumanData1.neck_bone);
+                                PositionData headData = Logic.GetBoneRotationFromTF(realHumanData1.head_bone);
+
+                                Vector3 worldGravity = Vector3.down * 0.02f;
+                                Vector3 worldForce1 = Vector3.zero;          
+                                Vector3 worldForce2 = Vector3.zero;   
+                                Vector3 worldForce3 = Vector3.zero;   
+
+                                float zOffset = 0f;
+                                float yOffset = 0f;
+                                if (neckData._front >= 0f)
+                                {   
+                                    // neck이 앞으로 숙인 유형                                                                        
+                                    float angle = Math.Abs(neckData._front);                                
+                                    yOffset = Logic.Remap(Math.Abs(angle), 0.0f, 140.0f, 0.01f, 0.02f);
+                                    zOffset = yOffset;
+                                    worldForce1 = new Vector3(0, -yOffset, zOffset);
+                                } else
+                                {
+                                    // neck이 뒤로 숙인 유형                                                                        
+                                    float angle = Math.Abs(neckData._front);                                
+                                    yOffset = Logic.Remap(Math.Abs(angle), 0.0f, 140.0f, 0.005f, 0.07f);
+                                    zOffset = yOffset;
+                                    worldForce1 = new Vector3(0, -yOffset, -zOffset);                                    
+                                }
+
+                                if (neckData._front < headData._front)
+                                {
+                                    // head가 앞으로 숙인 유형                                                                        
+                                    float angle = Logic.GetRelativePosition(neckData._front, headData._front);                           
+                                    yOffset = Logic.Remap(Math.Abs(angle), 0.0f, 120.0f, 0.01f, 0.03f);
+                                    zOffset = yOffset;
+                                    worldForce2 = new Vector3(0, -yOffset, zOffset);
+                                } else
+                                {
+                                    // head가 뒤로 숙인 유형   
+                                    float angle = Logic.GetRelativePosition(neckData._front, headData._front);
+                                    yOffset = Logic.Remap(Math.Abs(angle), 0.0f, 120.0f, 0.005f, 0.035f);
+                                    zOffset = yOffset;
+                                    worldForce2 = new Vector3(0, -yOffset, -zOffset);                  
+                                }
+
+                                worldForce3 = worldForce1 + worldForce2;
+                                
+                                // hair 에 대해 world position 적용
+                                foreach (DynamicBone hairDynamicBone in realHumanData1.hairDynamicBones)
+                                {
+                                    if (hairDynamicBone == null)
+                                        continue;
+
+                                    // DynamicBone 기준 로컬 변환
+                                    hairDynamicBone.m_Gravity =
+                                        realHumanData1.root_bone.InverseTransformDirection(worldGravity);
+
+                                    hairDynamicBone.m_Force =
+                                        realHumanData1.root_bone.InverseTransformDirection(worldForce3);
+                                }                         
+                            }                     
+                        }     
+#endif
+                    }                   
+                }
+
+                yield return new WaitForSeconds(0.5f); // 0.5초 대기
             }
         }
 
         private IEnumerator Routine(RealHumanData realHumanData)
         {
-            float wetMin = 0.05f;
-            float wetMax = 0.14f;
             while (true)
             {
                 if (_loaded == true)
@@ -416,7 +488,7 @@ namespace RealHumanSupport
                             ctrl.infConfig.inflationSize = (1f - sinValue) * 10f * BreathStrong.Value;
                             ctrl.MeshInflate(new MeshInflateFlags(ctrl), "StudioSlider");
                         }
-                    }            
+                    }    
 
                     yield return null;
                 }
@@ -445,6 +517,47 @@ namespace RealHumanSupport
         #endregion
 
         #region Patches
+
+        [HarmonyPatch(typeof(WorkspaceCtrl), nameof(WorkspaceCtrl.OnSelectSingle), typeof(TreeNodeObject))]
+        internal static class WorkspaceCtrl_OnSelectSingle_Patches
+        {
+            private static bool Prefix(object __instance, TreeNodeObject _node)
+            {
+                ObjectCtrlInfo objectCtrlInfo = Studio.Studio.GetCtrlInfo(_node);   
+                OCIChar ociChar = objectCtrlInfo as OCIChar;
+
+                if (ociChar != null)
+                {
+                    _self._selectedOciChar = ociChar;
+
+                    if (_self._ociCharMgmt.TryGetValue(ociChar.GetHashCode(), out var realHumanData))
+                    {                    
+                        if (realHumanData.coroutine != null)
+                        {
+                            ociChar.charInfo.StopCoroutine(realHumanData.coroutine);
+                            ociChar.charInfo.StartCoroutine(_self.ExecuteAfterFrame(ociChar, realHumanData));
+                        }                    
+                    } 
+                    else
+                    {
+                        RealHumanData realHumanData2 = new RealHumanData();
+                        realHumanData2 = Logic.InitRealHumanData(ociChar.GetChaControl(), realHumanData2);
+
+                        if (realHumanData2 != null)
+                        {
+                            realHumanData2.coroutine = ociChar.charInfo.StartCoroutine(_self.Routine(realHumanData2));                    
+                            _self._ociCharMgmt.Add(ociChar.GetHashCode(), realHumanData2);
+                            ociChar.charInfo.StartCoroutine(_self.ExecuteAfterFrame(ociChar, realHumanData2));
+                        } else
+                        {
+                            Logger.LogMessage($"Body skin not has bumpmap2");
+                        }                    
+                    }    
+                }
+
+                return true;
+            }
+        }
     
         [HarmonyPatch(typeof(WorkspaceCtrl), nameof(WorkspaceCtrl.OnDeselectSingle), typeof(TreeNodeObject))]
         internal static class WorkspaceCtrl_OnDeselectSingle_Patches
@@ -501,7 +614,7 @@ namespace RealHumanSupport
                         realHumanData.c_m_eye.Clear();
 
                         RealHumanData realHumanData2 = new RealHumanData();
-                        realHumanData2 = Logic.InitRealHumanData(__instance, realHumanData2);
+                        realHumanData2 = Logic.InitRealHumanData(__instance.GetChaControl(), realHumanData2);
 
                         if (realHumanData2 != null)
                         {
@@ -566,7 +679,7 @@ namespace RealHumanSupport
                 {
                     if (_self._ociCharMgmt.TryGetValue(_char.GetHashCode(), out var realHumanData))
                     {
-                        Logic.SetHairDown(_char.GetChaControl());
+                        Logic.SetHairDown(_char.GetChaControl(), realHumanData);
                     }
                 }
                 return true;
@@ -597,7 +710,7 @@ namespace RealHumanSupport
                     {
                         if (_self._ociCharMgmt.TryGetValue(ociChar.GetHashCode(), out var realHumanData))
                         {
-                            Logic.SetHairDown(ociChar.GetChaControl());
+                            Logic.SetHairDown(ociChar.GetChaControl(), realHumanData);
                         }
                     }
                 }                
@@ -614,7 +727,7 @@ namespace RealHumanSupport
                 if (__instance.player != null)
                 {
                     RealHumanData realHumanData = new RealHumanData();
-                    realHumanData = Logic.InitRealHumanData(null, realHumanData);
+                    realHumanData = Logic.InitRealHumanData(__instance.player, realHumanData);
                     Logic.SupportEyeFastBlinkEffect(__instance.player, realHumanData);                        
                     Logic.SupportExtraDynamicBones(__instance.player, realHumanData);
                 }
@@ -624,7 +737,7 @@ namespace RealHumanSupport
                 {
                     if (chaCtrl != null) {
                         RealHumanData realHumanData = new RealHumanData();
-                        realHumanData = Logic.InitRealHumanData(null, realHumanData);
+                        realHumanData = Logic.InitRealHumanData(chaCtrl, realHumanData);
                         Logic.SupportEyeFastBlinkEffect(chaCtrl, realHumanData);                        
                         Logic.SupportExtraDynamicBones(chaCtrl, realHumanData);
                     }

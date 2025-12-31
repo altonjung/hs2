@@ -243,28 +243,67 @@ namespace RealHumanSupport
                     if (capEndBTf != null) capEndBTf.gameObject.SetActive(false);
                     if (capBodyTf != null) capBodyTf.gameObject.SetActive(false);
                 }
+            } else
+            {
+                // 여기에서 기존 생성한 디버그 대상 삭제 코드 추가
+                // ===== 디버그 비활성화 시 기존 디버그 오브젝트 정리 =====
+                string debugName    = target.name + "_DBC_DebugSphere";
+                string capEndAName  = target.name + "_DBC_CapEndA";
+                string capEndBName  = target.name + "_DBC_CapEndB";
+                string capBodyName  = target.name + "_DBC_CapBody";
+
+                Transform t;
+
+                t = pivotTf.Find(debugName);
+                if (t != null)
+                    GameObject.DestroyImmediate(t.gameObject);
+
+                t = pivotTf.Find(capEndAName);
+                if (t != null)
+                    GameObject.DestroyImmediate(t.gameObject);
+
+                t = pivotTf.Find(capEndBName);
+                if (t != null)
+                    GameObject.DestroyImmediate(t.gameObject);
+
+                t = pivotTf.Find(capBodyName);
+                if (t != null)
+                    GameObject.DestroyImmediate(t.gameObject);                
             }
 
             return dbc;
         }
 
 
-        internal static DynamicBone[] SetHairDown(ChaControl chaCtrl) {
+        internal static DynamicBone[] SetHairDown(ChaControl chaCtrl, RealHumanData realHumanData) {
             string bone_prefix_str = "cf_";
             if(chaCtrl.sex == 0)
                 bone_prefix_str = "cm_";
+            
+            realHumanData.root_bone = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Root");
+            realHumanData.head_bone = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Head");
+            realHumanData.neck_bone = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Neck");            
 
-            DynamicBone[] hairbones = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Head").GetComponentsInChildren<DynamicBone>(true);  
+            DynamicBone[] hairbones = realHumanData.head_bone.GetComponentsInChildren<DynamicBone>(true);  
+
+            // 월드 기준 방향
+            Vector3 worldGravity = Vector3.down * 0.02f;
+            Vector3 worldForce = new Vector3(0, -0.03f, -0.01f);
+                        
             foreach (DynamicBone bone in hairbones)
             {
                 if (bone == null)
                     continue;
 
-                bone.m_Gravity = new Vector3(0f, UnityEngine.Random.Range(-0.05f, -0.01f), 0f);
-                bone.m_Force = new Vector3(0f, -0.005f, 0f);
-                bone.m_Damping = 0.5f;
-                bone.m_Elasticity = 0.01f;
+                bone.m_Gravity = realHumanData.head_bone.transform.InverseTransformDirection(worldGravity);
+                bone.m_Force =  realHumanData.head_bone.transform.InverseTransformDirection(worldForce);
+                bone.m_Damping = 0.13f;
+                bone.m_Elasticity = 0.05f;
+                bone.m_Stiffness = 0.13f;
             }
+
+            realHumanData.hairDynamicBones = hairbones.ToList();
+
             return hairbones;
         }
 
@@ -405,7 +444,7 @@ namespace RealHumanSupport
                 }
 
                 // hair dynamicbone에 finger collider 연결
-                DynamicBone[] hairbones = SetHairDown(chaCtrl);                
+                DynamicBone[] hairbones = SetHairDown(chaCtrl, realHumanData);                
 
                 Transform fingerThumb2LObject = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Hand_Thumb02_L");
                 Transform fingerThumb3LObject = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Hand_Thumb03_L");
@@ -640,6 +679,33 @@ namespace RealHumanSupport
         }
 
 
+        internal static PositionData GetBoneRotationFromTF(Transform t)
+        {
+            Vector3 fwd = t.forward;
+
+            // 앞 / 뒤 (Pitch)
+            Vector3 fwdYZ = Vector3.ProjectOnPlane(fwd, Vector3.right).normalized;
+            float pitch = Vector3.SignedAngle(
+                Vector3.forward,
+                fwdYZ,
+                Vector3.right
+            );
+
+            // 좌 / 우 (sideZ)
+            Vector3 right = t.right;
+
+            Vector3 rightXY = Vector3.ProjectOnPlane(right, Vector3.forward).normalized;
+
+            float sideZ = Vector3.SignedAngle(
+                Vector3.right,
+                rightXY,
+                Vector3.forward
+            );
+
+            PositionData data = new PositionData(t.rotation, pitch, sideZ);
+            return data;
+        }
+
         internal static PositionData GetBoneRotationFromFK(OCIChar.BoneInfo info)
         {
             Transform t = info.guideObject.transform;
@@ -744,10 +810,15 @@ namespace RealHumanSupport
             };
         }
 
-        internal static RealHumanData InitRealHumanData(OCIChar ociChar, RealHumanData realHumanData)
+        internal static RealHumanData InitRealHumanData(ChaControl chaCtrl, RealHumanData realHumanData)
         {
+#if FEATURE_FIX_EXISTING
+            FixExistingFeatures(chaCtrl);
+#endif            
             if (RealHumanSupport._self._isStudio)
             {
+                OCIChar ociChar = chaCtrl.GetOCIChar();
+
                 realHumanData.c_m_eye.Clear();
                 SkinnedMeshRenderer[] sks = ociChar.guideObject.transformTarget.GetComponentsInChildren<SkinnedMeshRenderer>();
 
@@ -778,7 +849,6 @@ namespace RealHumanSupport
                 {
                     realHumanData.head_bumpmap_name = "";
                 }
-
 
                 if (!realHumanData.body_bumpmap_name.Contains("_BumpMap2"))
                     return null;
@@ -859,11 +929,44 @@ namespace RealHumanSupport
                     realHumanData.lk_left_foot_bone = ociChar.listIKTarget[9]; // left foot
                     realHumanData.lk_right_foot_bone = ociChar.listIKTarget[12]; // right foot
                 }   
-            }
+            }         
 
             return realHumanData;
         }
 
+#if FEATURE_FIX_EXISTING
+        internal static void FixExistingFeatures(ChaControl chaCtrl) {            
+            string bone_prefix_str = "cf_";
+            if (chaCtrl.sex == 0)
+                bone_prefix_str = "cm_";
+            
+            // 기존 dynamic collider 오류 교정
+            Transform spine02_s = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Spine02_s");
+            if (spine02_s != null)
+            {
+                DynamicBoneCollider [] dbcs = spine02_s.GetComponentsInChildren<DynamicBoneCollider>(true);  
+
+                foreach (DynamicBoneCollider dbc in dbcs)
+                {
+                    dbc.m_Radius    = 0.90f * RealHumanSupport.ExtraBoneScale.Value;
+                    dbc.m_Height    = 2.7f * RealHumanSupport.ExtraBoneScale.Value;
+                }
+            }
+
+            Transform kosi02_hit = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"hit_Kosi02_s");
+            if (kosi02_hit != null)
+            {
+                DynamicBoneCollider [] dbcs = kosi02_hit.GetComponentsInChildren<DynamicBoneCollider>(true);
+
+                kosi02_hit.transform.localPosition = new Vector3(0, 0.2f, 0);
+                foreach (DynamicBoneCollider dbc in dbcs)
+                {
+                    dbc.m_Radius    = 1.0f * RealHumanSupport.ExtraBoneScale.Value;
+                    dbc.m_Height    = 3.8f * RealHumanSupport.ExtraBoneScale.Value;
+                }
+            }
+        }
+#endif   
         internal static float Remap(float value, float inMin, float inMax, float outMin, float outMax)
         {
             return outMin + (value - inMin) * (outMax - outMin) / (inMax - inMin);
@@ -1595,6 +1698,12 @@ namespace RealHumanSupport
         public Quaternion  prev_fk_left_foot_rot;        
         public Quaternion  prev_lk_right_foot_rot;
         public Quaternion  prev_lk_left_foot_rot;
+
+        public Transform head_bone;
+
+        public Transform neck_bone;
+
+        public Transform root_bone;
 
         public List<DynamicBone> hairDynamicBones = new List<DynamicBone>();
 

@@ -9,10 +9,11 @@
     <Import_RootNamespace>WindPhysics.Core</Import_RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="$(MSBuildThisFileDirectory)AssemblyInfo.cs" />    
+    <Compile Include="$(MSBuildThisFileDirectory)AssemblyInfo.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)WindPhysics.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)WindPhysicsLogic.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="$(MSBuildThisFileDirectory)Resources\Help.txt" />
-  </ItemGroup>  
+  </ItemGroup>
 </Project>
