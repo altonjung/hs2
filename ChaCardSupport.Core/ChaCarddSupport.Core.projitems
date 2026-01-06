@@ -3,14 +3,14 @@
   <PropertyGroup>
     <MSBuildAllProjects Condition="'$(MSBuildVersion)' == '' Or '$(MSBuildVersion)' &lt; '16.0'">$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
     <HasSharedItems>true</HasSharedItems>
-    <SharedGUID>e9a8dfae-8470-4ab1-a5a9-9f9c9b42a3d6</SharedGUID>
+    <SharedGUID>e9a8dfae-8470-4a11-a5a9-9f9c9b42a3d6</SharedGUID>
   </PropertyGroup>
   <PropertyGroup Label="Configuration">
-    <Import_RootNamespace>InGameOverhaul.Core</Import_RootNamespace>
+    <Import_RootNamespace>ChaCardSupport.Core</Import_RootNamespace>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)AssemblyInfo.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)InGameOverhaul.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ChaCardSupport.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="$(MSBuildThisFileDirectory)Resources\Help.txt" />
