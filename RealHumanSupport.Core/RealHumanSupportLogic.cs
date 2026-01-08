@@ -748,7 +748,7 @@ namespace RealHumanSupport
             return tex;
         }
 
-        internal static RealHumanData AllocateBumpMap(OCIChar ociChar, RealHumanData realHumanData)
+        internal static RealHumanData AllocateBumpMap(ChaControl charControl, RealHumanData realHumanData)
         {
             Texture2D headOriginTexture = null;
             Texture2D bodyOriginTexture = null;
@@ -763,17 +763,19 @@ namespace RealHumanSupport
             else
                 bodyOriginTexture = realHumanData.m_skin_body.GetTexture(realHumanData.body_bumpmap_name) as Texture2D;
 
-            realHumanData.headOriginTexture = SetTextureSize(MakeReadableTexture(headOriginTexture), RealHumanSupport._self._faceExpressionFemaleBumpMap2.width, RealHumanSupport._self._faceExpressionFemaleBumpMap2.height);
-            realHumanData.bodyOriginTexture = SetTextureSize(MakeReadableTexture(bodyOriginTexture), RealHumanSupport._self._bodyStrongFemale_A_BumpMap2.width, RealHumanSupport._self._bodyStrongFemale_A_BumpMap2.height);
+            realHumanData.headOriginTexture = SetTextureSize(MakeWritableTexture(headOriginTexture), RealHumanSupport._self._faceExpressionFemaleBumpMap2.width, RealHumanSupport._self._faceExpressionFemaleBumpMap2.height);
+            realHumanData.bodyOriginTexture = SetTextureSize(MakeWritableTexture(bodyOriginTexture), RealHumanSupport._self._bodyStrongFemale_A_BumpMap2.width, RealHumanSupport._self._bodyStrongFemale_A_BumpMap2.height);
     
             return realHumanData;
         }
 
-        internal static RealHumanData GetMaterials(OCIChar ociChar, RealHumanData realHumanData)
+        internal static RealHumanData GetMaterials(ChaControl charCtrl, RealHumanData realHumanData)
         {
-            SkinnedMeshRenderer[] sks = ociChar.guideObject.transformTarget.GetComponentsInChildren<SkinnedMeshRenderer>();
+            //UnityEngine.Debug.Log($">> GetMaterials {charCtrl}");
+            SkinnedMeshRenderer[] bodyRenderers = charCtrl.objBody.GetComponentsInChildren<SkinnedMeshRenderer>();
+            UnityEngine.Debug.Log($">> bodyRenderers {bodyRenderers.Length}");
 
-            foreach (SkinnedMeshRenderer render in sks.ToList())
+            foreach (SkinnedMeshRenderer render in bodyRenderers.ToList())
             {
                 foreach (var mat in render.sharedMaterials)
                 {
@@ -782,14 +784,39 @@ namespace RealHumanSupport
                     if (name.Contains("_m_skin_body"))
                     {
                         realHumanData.m_skin_body = mat;
+                        Texture mainTex = realHumanData.m_skin_body.mainTexture;
+
+                        // UnityEngine.Debug.Log($">> mainTex.isReadable {mainTex.isReadable}");
+
+                        // SaveAsPNG(CaptureMaterialOutput(realHumanData.m_skin_body, 4096, 4096), "c:/Temp/body_mainTex.png");
                     }
-                    else if (name.Contains("_m_skin_head"))
+                }
+            }
+
+            SkinnedMeshRenderer[] headRenderers = charCtrl.objHead.GetComponentsInChildren<SkinnedMeshRenderer>();
+            // UnityEngine.Debug.Log($">> headRenderers {headRenderers.Length}");
+
+            foreach (SkinnedMeshRenderer render in headRenderers.ToList())
+            {
+                foreach (var mat in render.sharedMaterials)
+                {
+                    string name = mat.name.ToLower();
+
+                    if (name.Contains("_m_skin_head"))
                     {
                         realHumanData.m_skin_head = mat;
+                        Texture mainTex = realHumanData.m_skin_head.mainTexture;
+
+                        // UnityEngine.Debug.Log($">> mainTex.isReadable {mainTex.isReadable}");
+
+                        // SaveAsPNG(CaptureMaterialOutput(realHumanData.m_skin_head, 2048, 2048), "c:/Temp/face_mainTex.png");
                     }
-                    else if (name.Contains("c_m_eye"))
+                    else if (name.Contains("c_m_eye_01") || name.Contains("c_m_eye_02"))
                     {
                         realHumanData.c_m_eye.Add(mat);
+                    }
+                    else if (name.Contains("c_m_eye_namida")) {
+                        realHumanData.m_tear_eye = mat;
                     }
                 }
             }
@@ -810,25 +837,25 @@ namespace RealHumanSupport
             };
         }
 
-        internal static RealHumanData InitRealHumanData(ChaControl chaCtrl, RealHumanData realHumanData)
+        internal static RealHumanData InitRealHumanData(ChaControl charCtrl, RealHumanData realHumanData)
         {
 #if FEATURE_FIX_EXISTING
-            FixExistingFeatures(chaCtrl);
+            FixExistingFeatures(charCtrl);
 #endif            
-            if (RealHumanSupport._self._isStudio)
             {
-                OCIChar ociChar = chaCtrl.GetOCIChar();
+                realHumanData.charControl = charCtrl;
 
                 realHumanData.c_m_eye.Clear();
-                SkinnedMeshRenderer[] sks = ociChar.guideObject.transformTarget.GetComponentsInChildren<SkinnedMeshRenderer>();
 
-                realHumanData = GetMaterials(ociChar, realHumanData);
-        
-                if (realHumanData.m_skin_body.GetTexture("_BumpMap2") != null)
+                realHumanData = GetMaterials(charCtrl, realHumanData);
+
+                UnityEngine.Debug.Log($">> realHumanData.m_skin_body {realHumanData.m_skin_body}");
+
+                if (realHumanData.m_skin_body != null && realHumanData.m_skin_body.GetTexture("_BumpMap2") != null)
                 {
                     realHumanData.body_bumpmap_name = "_BumpMap2";
                 } 
-                else if (realHumanData.m_skin_body.GetTexture("_BumpMap") != null)
+                else if (realHumanData.m_skin_body != null && realHumanData.m_skin_body.GetTexture("_BumpMap") != null)
                 {
                     realHumanData.body_bumpmap_name = "_BumpMap";
                 }
@@ -837,11 +864,11 @@ namespace RealHumanSupport
                     realHumanData.body_bumpmap_name = "";
                 }
                 
-                if (realHumanData.m_skin_head.GetTexture("_BumpMap2") != null)
+                if (realHumanData.m_skin_head != null && realHumanData.m_skin_head.GetTexture("_BumpMap2") != null)
                 {
                     realHumanData.head_bumpmap_name = "_BumpMap2";
                 }
-                else if (realHumanData.m_skin_head.GetTexture("_BumpMap") != null)
+                else if (realHumanData.m_skin_head != null && realHumanData.m_skin_head.GetTexture("_BumpMap") != null)
                 {
                     realHumanData.head_bumpmap_name = "_BumpMap";
                 }
@@ -854,80 +881,85 @@ namespace RealHumanSupport
                     return null;
                 else
                 {
-                    realHumanData = AllocateBumpMap(ociChar, realHumanData);
-                    
-                    foreach (OCIChar.BoneInfo bone in ociChar.listBones)
-                    {
-                        if (bone.guideObject != null && bone.guideObject.transformTarget != null) {
-                            if(bone.guideObject.transformTarget.name.Contains("_J_Spine01"))
-                            {
-                                realHumanData.fk_spine01_bone = bone; // 하단
-                            }
-                            else if(bone.guideObject.transformTarget.name.Contains("_J_Spine02"))
-                            {
-                                realHumanData.fk_spine02_bone = bone; // 상단
-                            }
-                            else if (bone.guideObject.transformTarget.name.Contains("_J_Shoulder_L"))
-                            {
-                                realHumanData.fk_left_shoulder_bone = bone;
-                            }
-                            else if (bone.guideObject.transformTarget.name.Contains("_J_Shoulder_R"))
-                            {
-                                realHumanData.fk_right_shoulder_bone = bone;
-                            }
-                            else if (bone.guideObject.transformTarget.name.Contains("_J_LegUp00_L"))
-                            {
-                                realHumanData.fk_left_thigh_bone = bone;
-                            }
-                            else if (bone.guideObject.transformTarget.name.Contains("_J_LegUp00_R"))
-                            {
-                                realHumanData.fk_right_thigh_bone = bone;
-                            }
-                            else if (bone.guideObject.transformTarget.name.Contains("_J_LegLow01_L"))
-                            {
-                                realHumanData.fk_left_knee_bone = bone;
-                            }
-                            else if (bone.guideObject.transformTarget.name.Contains("_J_LegLow01_R"))
-                            {
-                                realHumanData.fk_right_knee_bone = bone;
-                            }                        
-                            // else if (bone.guideObject.transformTarget.name.Contains("_J_Hand_L"))
-                            // {
-                            //     realHumanData.fk_left_hand_bone = bone;
-                            // }
-                            // else if (bone.guideObject.transformTarget.name.Contains("_J_Hand_R"))
-                            // {
-                            //     realHumanData.fk_right_hand_bone = bone;
-                            // }
-                            else if (bone.guideObject.transformTarget.name.Contains("_J_Head"))
-                            {
-                                realHumanData.fk_head_bone = bone;
-                            }
-                            else if (bone.guideObject.transformTarget.name.Contains("_J_Neck"))
-                            {
-                                realHumanData.fk_neck_bone = bone;
-                            }
-                            else if (bone.guideObject.transformTarget.name.Contains("_J_Foot01_L"))
-                            {
-                                realHumanData.fk_left_foot_bone = bone;
-                            }   
-                            else if (bone.guideObject.transformTarget.name.Contains("_J_Foot01_R"))
-                            {
-                                realHumanData.fk_right_foot_bone = bone;
-                            }                 
-                            // else if (bone.guideObject.transformTarget.name.Contains("_J_Toes01_L"))
-                            // {
-                            //     realHumanData.fk_left_toes_bone = bone;
-                            // }   
-                            // else if (bone.guideObject.transformTarget.name.Contains("_J_Toes01_R"))
-                            // {
-                            //     realHumanData.fk_right_toes_bone = bone;
-                            // } 
-                        }
-                    }
+         
+                    if (StudioAPI.InsideStudio) {
+                        OCIChar ociChar = charCtrl.GetOCIChar();
 
-                    realHumanData.lk_left_foot_bone = ociChar.listIKTarget[9]; // left foot
-                    realHumanData.lk_right_foot_bone = ociChar.listIKTarget[12]; // right foot
+                        realHumanData = AllocateBumpMap(charCtrl, realHumanData);
+                        
+                        foreach (OCIChar.BoneInfo bone in ociChar.listBones)
+                        {
+                            if (bone.guideObject != null && bone.guideObject.transformTarget != null) {
+                                if(bone.guideObject.transformTarget.name.Contains("_J_Spine01"))
+                                {
+                                    realHumanData.fk_spine01_bone = bone; // 하단
+                                }
+                                else if(bone.guideObject.transformTarget.name.Contains("_J_Spine02"))
+                                {
+                                    realHumanData.fk_spine02_bone = bone; // 상단
+                                }
+                                else if (bone.guideObject.transformTarget.name.Contains("_J_Shoulder_L"))
+                                {
+                                    realHumanData.fk_left_shoulder_bone = bone;
+                                }
+                                else if (bone.guideObject.transformTarget.name.Contains("_J_Shoulder_R"))
+                                {
+                                    realHumanData.fk_right_shoulder_bone = bone;
+                                }
+                                else if (bone.guideObject.transformTarget.name.Contains("_J_LegUp00_L"))
+                                {
+                                    realHumanData.fk_left_thigh_bone = bone;
+                                }
+                                else if (bone.guideObject.transformTarget.name.Contains("_J_LegUp00_R"))
+                                {
+                                    realHumanData.fk_right_thigh_bone = bone;
+                                }
+                                else if (bone.guideObject.transformTarget.name.Contains("_J_LegLow01_L"))
+                                {
+                                    realHumanData.fk_left_knee_bone = bone;
+                                }
+                                else if (bone.guideObject.transformTarget.name.Contains("_J_LegLow01_R"))
+                                {
+                                    realHumanData.fk_right_knee_bone = bone;
+                                }                        
+                                // else if (bone.guideObject.transformTarget.name.Contains("_J_Hand_L"))
+                                // {
+                                //     realHumanData.fk_left_hand_bone = bone;
+                                // }
+                                // else if (bone.guideObject.transformTarget.name.Contains("_J_Hand_R"))
+                                // {
+                                //     realHumanData.fk_right_hand_bone = bone;
+                                // }
+                                else if (bone.guideObject.transformTarget.name.Contains("_J_Head"))
+                                {
+                                    realHumanData.fk_head_bone = bone;
+                                }
+                                else if (bone.guideObject.transformTarget.name.Contains("_J_Neck"))
+                                {
+                                    realHumanData.fk_neck_bone = bone;
+                                }
+                                else if (bone.guideObject.transformTarget.name.Contains("_J_Foot01_L"))
+                                {
+                                    realHumanData.fk_left_foot_bone = bone;
+                                }   
+                                else if (bone.guideObject.transformTarget.name.Contains("_J_Foot01_R"))
+                                {
+                                    realHumanData.fk_right_foot_bone = bone;
+                                }                 
+                                // else if (bone.guideObject.transformTarget.name.Contains("_J_Toes01_L"))
+                                // {
+                                //     realHumanData.fk_left_toes_bone = bone;
+                                // }   
+                                // else if (bone.guideObject.transformTarget.name.Contains("_J_Toes01_R"))
+                                // {
+                                //     realHumanData.fk_right_toes_bone = bone;
+                                // } 
+                            }
+                        }
+
+                        realHumanData.lk_left_foot_bone = ociChar.listIKTarget[9]; // left foot
+                        realHumanData.lk_right_foot_bone = ociChar.listIKTarget[12]; // right foot
+                    }
                 }   
             }         
 
@@ -991,93 +1023,92 @@ namespace RealHumanSupport
 
         internal static void SupportFaceBumpEffect(ChaControl chaCtrl, RealHumanData realHumanData)
         {
-            if (realHumanData.m_skin_head != null)
+            if (realHumanData.m_skin_head == null)
+                return;
+
+            if (RealHumanSupport.FaceBlendingActive.Value)
             {
-                // UnityEngine.Debug.Log($">> SupportFaceBumpEffect");
-                if (RealHumanSupport.FaceBumpActive.Value)
+                Texture2D origin_texture = realHumanData.headOriginTexture;
+                Texture2D express_texture = null;
+
+                if (chaCtrl.sex == 1) // female
                 {
-                    Texture2D origin_texture = realHumanData.headOriginTexture;
-                    Texture2D express_texture = null;
-
-                    if (chaCtrl.sex == 1) // female
-                    {
-                        express_texture = RealHumanSupport._self._faceExpressionFemaleBumpMap2;
-                    }
-                    else
-                    {
-                        express_texture = RealHumanSupport._self._faceExpressionMaleBumpMap2;
-                    }
-
-                    List<BArea> areas = new List<BArea>();
-
-                    RealFaceData realFaceData = null;
-
-                    if (RealHumanSupport._self._faceMouthMgmt.TryGetValue(RealHumanSupport._self._mouth_type, out realFaceData))
-                    {
-                        foreach(BArea area in realFaceData.areas)
-                        {
-                            areas.Add(area);
-                        }
-                    }
-
-                    if (RealHumanSupport._self._faceEyesMgmt.TryGetValue(RealHumanSupport._self._eye_type, out realFaceData))
-                    {
-                        foreach(BArea area in realFaceData.areas)
-                        {
-                            areas.Add(area);
-                        }
-                    }
-
-                    if (origin_texture != null)
-                    {
-                        int kernel = RealHumanSupport._self._mergeComputeShader.FindKernel("CSMain");
-                        int w = 1024;
-                        int h = 1024;
-
-                        // RenderTexture 초기화 및 재사용
-                        if (RealHumanSupport._self._head_rt == null || RealHumanSupport._self._head_rt.width != w || RealHumanSupport._self._head_rt.height != h)
-                        {
-                            if (RealHumanSupport._self._head_rt != null) RealHumanSupport._self._head_rt.Release();
-                            RealHumanSupport._self._head_rt = new RenderTexture(w, h, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
-                            RealHumanSupport._self._head_rt.enableRandomWrite = true;
-                            RealHumanSupport._self._head_rt.Create();
-                        }        
-
-                    // 영역 데이터가 변경된 경우만 업데이트
-                        if (areas.Count > 0)
-                        {                         
-                            RealHumanSupport._self._head_areaBuffer.SetData(areas.ToArray());
-                            // 셰이더 파라미터 설정
-                            RealHumanSupport._self._mergeComputeShader.SetInt("Width", w);
-                            RealHumanSupport._self._mergeComputeShader.SetInt("Height", h);
-                            RealHumanSupport._self._mergeComputeShader.SetInt("AreaCount", areas.Count);
-                            RealHumanSupport._self._mergeComputeShader.SetTexture(kernel, "TexA", origin_texture);
-                            RealHumanSupport._self._mergeComputeShader.SetTexture(kernel, "TexB", express_texture);
-                            RealHumanSupport._self._mergeComputeShader.SetTexture(kernel, "Result", RealHumanSupport._self._head_rt);
-                            RealHumanSupport._self._mergeComputeShader.SetBuffer(kernel, "Areas", RealHumanSupport._self._head_areaBuffer);
-
-                            // Dispatch 실행
-                            RealHumanSupport._self._mergeComputeShader.Dispatch(kernel, Mathf.CeilToInt(w / 8f), Mathf.CeilToInt(h / 8f), 1);
-
-                            // 결과를 바로 Material에 적용 (CPU로 복사 안 함)    
-                            realHumanData.m_skin_head.SetTexture(realHumanData.head_bumpmap_name, RealHumanSupport._self._head_rt);                
-                        }
-                    }                
-                } 
+                    express_texture = RealHumanSupport._self._faceExpressionFemaleBumpMap2;
+                }
                 else
                 {
-                    realHumanData.m_skin_head.SetTexture(realHumanData.head_bumpmap_name, realHumanData.headOriginTexture);
+                    express_texture = RealHumanSupport._self._faceExpressionMaleBumpMap2;
                 }
+
+                List<BArea> areas = new List<BArea>();
+
+                RealFaceData realFaceData = null;
+
+                if (RealHumanSupport._self._faceMouthMgmt.TryGetValue(RealHumanSupport._self._mouth_type, out realFaceData))
+                {
+                    foreach(BArea area in realFaceData.areas)
+                    {
+                        areas.Add(area);
+                    }
+                }
+
+                if (RealHumanSupport._self._faceEyesMgmt.TryGetValue(RealHumanSupport._self._eye_type, out realFaceData))
+                {
+                    foreach(BArea area in realFaceData.areas)
+                    {
+                        areas.Add(area);
+                    }
+                }
+
+                if (origin_texture != null)
+                {
+                    int kernel = RealHumanSupport._self._mergeComputeShader.FindKernel("CSMain");
+                    int w = 1024;
+                    int h = 1024;
+
+                    // RenderTexture 초기화 및 재사용
+                    if (RealHumanSupport._self._head_rt == null || RealHumanSupport._self._head_rt.width != w || RealHumanSupport._self._head_rt.height != h)
+                    {
+                        if (RealHumanSupport._self._head_rt != null) RealHumanSupport._self._head_rt.Release();
+                        RealHumanSupport._self._head_rt = new RenderTexture(w, h, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+                        RealHumanSupport._self._head_rt.enableRandomWrite = true;
+                        RealHumanSupport._self._head_rt.Create();
+                    }        
+
+                // 영역 데이터가 변경된 경우만 업데이트
+                    if (areas.Count > 0)
+                    {                         
+                        RealHumanSupport._self._head_areaBuffer.SetData(areas.ToArray());
+                        // 셰이더 파라미터 설정
+                        RealHumanSupport._self._mergeComputeShader.SetInt("Width", w);
+                        RealHumanSupport._self._mergeComputeShader.SetInt("Height", h);
+                        RealHumanSupport._self._mergeComputeShader.SetInt("AreaCount", areas.Count);
+                        RealHumanSupport._self._mergeComputeShader.SetTexture(kernel, "TexA", origin_texture);
+                        RealHumanSupport._self._mergeComputeShader.SetTexture(kernel, "TexB", express_texture);
+                        RealHumanSupport._self._mergeComputeShader.SetTexture(kernel, "Result", RealHumanSupport._self._head_rt);
+                        RealHumanSupport._self._mergeComputeShader.SetBuffer(kernel, "Areas", RealHumanSupport._self._head_areaBuffer);
+
+                        // Dispatch 실행
+                        RealHumanSupport._self._mergeComputeShader.Dispatch(kernel, Mathf.CeilToInt(w / 8f), Mathf.CeilToInt(h / 8f), 1);
+
+                        // 결과를 바로 Material에 적용 (CPU로 복사 안 함)    
+                        realHumanData.m_skin_head.SetTexture(realHumanData.head_bumpmap_name, RealHumanSupport._self._head_rt);                
+                    }
+                }                
+            } 
+            else
+            {
+                realHumanData.m_skin_head.SetTexture(realHumanData.head_bumpmap_name, realHumanData.headOriginTexture);
             }
         }
 
         internal static void SupportBodyBumpEffect(ChaControl chaCtrl, RealHumanData realHumanData)
         {
             // UnityEngine.Debug.Log($">> SupportBodybumpEffect {RealHumanSupport._self._ociCharMgmt.Count}, {realHumanData.m_skin_head}, {realHumanData.m_skin_body}");
-            if (realHumanData.m_skin_head == null || realHumanData.m_skin_body == null)
+            if (realHumanData.m_skin_body == null)
                 return;
 
-            if (RealHumanSupport.BodyBumpActive.Value)
+            if (RealHumanSupport.BodyBlendingActive.Value)
             {
                 OCIChar ociChar = chaCtrl.GetOCIChar();
 
@@ -1469,6 +1500,203 @@ namespace RealHumanSupport
             }
         }
 
+#if FEATURE_DYNAMIC_POSITION_CHANGE_SUPPORT
+        internal static void SupportIKOnScene(ChaControl chaCtrl, RealHumanData realHumanData) {
+            if (!StudioAPI.InsideStudio && !MakerAPI.insideMaker) {
+
+                realHumanData.head_ik_data = new HeadIKData();
+                realHumanData.l_leg_ik_data = new LegIKData();
+                realHumanData.r_leg_ik_data = new LegIKData();
+
+                Transform[] headbones = chaControl.objBody.GetComponentsInChildren<Transform>();
+
+                foreach (Transform bone in headbones) {
+                    if (bone.gameObject.name.Contains("_J_Head"))
+                    {
+                        head_ik_data.head = bone;
+                        head_ik_data.baseHeadRotation = bone.localRotation;
+                    }
+                    else if (bone.gameObject.name.Contains("_J_Neck")) {
+                        head_ik_data.neck = bone;
+                        head_ik_data.baseNeckRotation = bone.localRotation;
+                    }
+                }
+
+
+                Transform[] bodybones = chaControl.objHead.GetComponentsInChildren<Transform>();
+
+                foreach (Transform bone in bodybones) {
+                    if (bone.gameObject.name.Contains("_J_Foot01_L"))
+                    {
+                        l_leg_ik_data.foot = bone;
+                    }   
+                    else if (bone.gameObject.name.Contains("_J_Foot01_R"))
+                    {
+                        r_leg_ik_data.foot = bone;
+                    } 
+                    else if (bone.gameObject.name.Contains("_J_LegLow01_L"))
+                    {
+                        l_leg_ik_data.knee = bone;
+                    }
+                    else if (bone.gameObject.name.Contains("_J_LegLow01_R"))
+                    {
+                        r_leg_ik_data.knee = bone;
+                    } 
+                    else if (bone.gameObject.name.Contains("_J_LegUp00_L"))
+                    {
+                        l_leg_ik_data.thigh = bone;
+                    }
+                    else if (bone.gameObject.name.Contains("_J_LegUp00_R"))
+                    {
+                        r_leg_ik_data.thigh = bone;
+                    }                    
+                }
+            }
+        }
+
+        internal static void SolveLegIK(
+            Transform thigh,
+            Transform knee,
+            Transform foot,
+            Transform target,
+            float weight) {
+    
+            Vector3 rootPos = thigh.position;
+            Vector3 midPos = knee.position;
+            Vector3 endPos = foot.position;
+            Vector3 targetPos = target.position;
+
+            float lenUpper = Vector3.Distance(rootPos, midPos);
+            float lenLower = Vector3.Distance(midPos, endPos);
+            float lenTarget = Vector3.Distance(rootPos, targetPos);
+
+            // 거리 제한
+            lenTarget = Mathf.Min(lenTarget, lenUpper + lenLower - 0.0001f);
+
+            // ======================
+            // Knee angle (Cosine law)
+            // ======================
+            float cosKnee =
+                (lenUpper * lenUpper + lenLower * lenLower - lenTarget * lenTarget) /
+                (2f * lenUpper * lenLower);
+
+            cosKnee = Mathf.Clamp(cosKnee, -1f, 1f);
+            float kneeAngle = Mathf.Acos(cosKnee) * Mathf.Rad2Deg;
+
+            // ======================
+            // Thigh rotation
+            // ======================
+            Vector3 dirToTarget = (targetPos - rootPos).normalized;
+            Quaternion thighRot = Quaternion.LookRotation(dirToTarget, thigh.up);
+
+            thigh.rotation = Quaternion.Slerp(
+                thigh.rotation,
+                thighRot,
+                weight
+            );
+
+            // ======================
+            // Knee rotation (local)
+            // ======================
+            Quaternion kneeRot = Quaternion.Euler(-kneeAngle, 0, 0);
+
+            knee.localRotation = Quaternion.Slerp(
+                knee.localRotation,
+                kneeRot,
+                weight
+            );
+
+            // ======================
+            // Foot rotation
+            // ======================
+            foot.rotation = Quaternion.Slerp(
+                foot.rotation,
+                target.rotation,
+                weight
+            );
+        }
+
+        // ==========================
+        // Head / Neck rotation only
+        // ==========================
+        internal static void RotateHead(Vector2 mouseDelta)
+        {
+            float yaw   = mouseDelta.x * 0.15f;
+            float pitch = -mouseDelta.y * 0.15f;
+
+            Vector3 euler = head.localEulerAngles;
+            euler.x = ClampAngle(euler.x + pitch, -40f, 40f);
+            euler.y = ClampAngle(euler.y + yaw, -60f, 60f);
+
+            head.localEulerAngles = euler;
+        }
+
+        internal static float ClampAngle(float angle, float min, float max)
+        {
+            angle = Mathf.Repeat(angle + 180f, 360f) - 180f;
+            return Mathf.Clamp(angle, min, max);
+        }
+
+        internal static GameObject CreateHitProxy(Transform neck, string name, float radius = 0.06f)
+        {
+            GameObject go = new GameObject($"{name}_HitProxy");
+
+            go.transform.SetParent(neck, false);
+            go.transform.localPosition = Vector3.zero;
+            go.transform.localRotation = Quaternion.identity;
+
+            SphereCollider col = go.AddComponent<SphereCollider>();
+            col.radius = radius; // 목 크기에 맞게 조절
+            col.isTrigger = true;
+
+            return go;
+        }
+
+        internal static void UpdateIKHead(HeadIKData headIKData, float mouseX, float mouseY) {
+            // float yaw   = Input.GetAxis("Mouse X") * 2.0f;
+            // float pitch = -Input.GetAxis("Mouse Y") * 2.0f;
+
+            headIKData.inputEuler.x += mouseX * 2f; // yaw
+            headIKData.inputEuler.y += mouseY * 2f; // pitch
+
+            // Clamp (중요)
+            headIKData.inputEuler.x = Mathf.Clamp(headIKData.inputEuler.x, -60f, 60f);
+            headIKData.inputEuler.y = Mathf.Clamp(headIKData.inputEuler.y, -40f, 40f);            
+        }
+
+        internal static void ReflectIKToAnimation(RealHumanData realHumanData) {
+            if (realHumanData.headIKData.weight <= 0f)
+                return;
+
+            // 목표 회전
+            Quaternion neckOffset = Quaternion.Euler(
+                realHumanData.headIKData.inputEuler.y * 0.4f,
+                realHumanData.headIKData.inputEuler.x * 0.4f,
+                0f
+            );
+
+            Quaternion headOffset = Quaternion.Euler(
+                realHumanData.headIKData.inputEuler.y * 0.6f,
+                realHumanData.headIKData.inputEuler.x * 0.6f,
+                0f
+            );
+
+            realHumanData.headIKData.neck.localRotation =
+                Quaternion.Slerp(
+                    realHumanData.headIKData.baseNeckRotation,
+                    realHumanData.headIKData.baseNeckRotation * neckOffset,
+                    realHumanData.headIKData.weight
+                );
+
+            realHumanData.headIKData.head.localRotation =
+                Quaternion.Slerp(
+                    realHumanData.headIKData.baseHeadRotation,
+                    realHumanData.headIKData.baseHeadRotation * headOffset,
+                    realHumanData.headIKData.weight
+                );
+        }
+#endif                
+
         internal static Texture2D RenderTextureToTexture2D(RenderTexture rt)
         {
             if (rt == null) return null;
@@ -1492,39 +1720,139 @@ namespace RealHumanSupport
             return tex;
         }
 
-        internal static void SaveAsPNG(Texture2D tex, string path)
+        internal static void SaveAsPNG(Texture tex, string path)
         {
             if (tex == null)
             {
-                UnityEngine.Debug.LogError("Texture is null, cannot save.");
+                Debug.LogError("Texture is null");
                 return;
             }
 
-            byte[] bytes = tex.EncodeToPNG();
-            try
+            Texture2D tex2D = null;
+
+            if (tex is Texture2D t2d)
             {
-                File.WriteAllBytes(path, bytes);
-                UnityEngine.Debug.Log($"Texture saved to: {path}");
+                tex2D = t2d;
             }
-            catch (System.Exception e)
+            else if (tex is RenderTexture rt)
             {
-                UnityEngine.Debug.LogError($"Failed to save texture: {e}");
+                tex2D = RenderTextureToTexture2D(rt);
             }
+            else
+            {
+                Debug.LogError($"Unsupported texture type: {tex.GetType()}");
+                return;
+            }
+
+            byte[] bytes = tex2D.EncodeToPNG();
+            File.WriteAllBytes(path, bytes);
         }
 
-        internal static Texture2D MakeReadableTexture(Texture2D texture)
-        {
-            RenderTexture rt = RenderTexture.GetTemporary(texture.width, texture.height, 24, RenderTextureFormat.ARGB32);
 
-            RenderTexture cachedActive = RenderTexture.active;
+
+        // internal static void SaveAsPNG(Texture2D tex, string path)
+        // {
+        //     if (tex == null)
+        //     {
+        //         UnityEngine.Debug.LogError("Texture is null, cannot save.");
+        //         return;
+        //     }
+
+        //     byte[] bytes = tex.EncodeToPNG();
+        //     try
+        //     {
+        //         File.WriteAllBytes(path, bytes);
+        //         UnityEngine.Debug.Log($"Texture saved to: {path}");
+        //     }
+        //     catch (System.Exception e)
+        //     {
+        //         UnityEngine.Debug.LogError($"Failed to save texture: {e}");
+        //     }
+        // }
+
+        internal static Texture2D MakeWritableTexture(Texture texture)
+        {
+            if (texture == null)
+                return null;
+
+            int width = texture.width;
+            int height = texture.height;
+
+            RenderTexture rt = RenderTexture.GetTemporary(
+                width,
+                height,
+                0,
+                RenderTextureFormat.ARGB32,
+                RenderTextureReadWrite.Linear
+            );
+
+            RenderTexture prev = RenderTexture.active;
             RenderTexture.active = rt;
+
+            // Texture2D / RenderTexture 모두 대응
             Graphics.Blit(texture, rt);
 
-            Texture2D tex = new Texture2D(texture.width, texture.height, TextureFormat.ARGB32, true);
-            tex.ReadPixels(new Rect(0, 0, texture.width, texture.height), 0, 0, false);
+            Texture2D tex = new Texture2D(width, height, TextureFormat.ARGB32, false);
+            tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
             tex.Apply();
 
-            RenderTexture.active = cachedActive;
+            RenderTexture.active = prev;
+            RenderTexture.ReleaseTemporary(rt);
+
+            return tex;
+        }
+
+        internal static Texture2D CaptureMaterialOutput(Material mat, int width, int height)
+        {
+            RenderTexture rt = RenderTexture.GetTemporary(
+                width,
+                height,
+                0,
+                RenderTextureFormat.ARGB32
+            );
+
+            Graphics.Blit(null, rt, mat);
+
+            RenderTexture prev = RenderTexture.active;
+            RenderTexture.active = rt;
+
+            Texture2D tex = new Texture2D(width, height, TextureFormat.ARGB32, false);
+            tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+            tex.Apply();
+
+            RenderTexture.active = prev;
+            RenderTexture.ReleaseTemporary(rt);
+
+            return tex;
+        }
+
+        internal static Texture2D MakeWritableTexturev2(Texture texture)
+        {
+            if (texture == null)
+                return null;
+
+            int width = texture.width;
+            int height = texture.height;
+
+            RenderTexture rt = RenderTexture.GetTemporary(
+                width,
+                height,
+                0,
+                RenderTextureFormat.ARGB32,
+                RenderTextureReadWrite.Linear
+            );
+
+            RenderTexture prev = RenderTexture.active;
+            RenderTexture.active = rt;
+
+            // Texture2D / RenderTexture 모두 대응
+            Graphics.Blit(texture, rt);
+
+            Texture2D tex = new Texture2D(width, height, TextureFormat.ARGB32, false);
+            tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+            tex.Apply();
+
+            RenderTexture.active = prev;
             RenderTexture.ReleaseTemporary(rt);
 
             return tex;
@@ -1621,10 +1949,8 @@ namespace RealHumanSupport
 
     class RealHumanData
     {
-        public OCIChar   ociChar;
+        public ChaControl   charControl;
         public Coroutine coroutine;
-
-        // public float  body_bumpScale2; 
 
         public string head_bumpmap_name;
         public string body_bumpmap_name;
@@ -1634,6 +1960,8 @@ namespace RealHumanSupport
         public DynamicBone_Ver02 rightButtCheek;
         public DynamicBone_Ver02 leftButtCheek;
 
+        public bool shouldTearing;
+        public Material m_tear_eye;
         public Material m_skin_head;
         public Material m_skin_body;
 
@@ -1713,34 +2041,64 @@ namespace RealHumanSupport
         // public Transform tf_j_l_foot; // 왼발 발목
         // public Transform tf_j_r_foot; // 오른발 발목
 
-        // public Transform cm_j_l_arm_high; // 왼팔 상단
-        // public Transform cm_j_r_arm_high; // 오른팔 상단
+        // public Transform tf_j_l_leg_up; // 왼발 고관절
+        // public Transform tf_j_r_leg_up; // 오른발 고관절
 
-        // public Transform cm_j_l_leg_up; // 왼발 고관절
-        // public Transform cm_j_r_leg_up; // 오른발 고관절
+        // public Transform tf_j_l_leg_knee; // 왼발 무릎
+        // public Transform tf_j_r_leg_knee; // 오른발 무릎
 
-        // public Transform cm_j_l_leg_knee; // 왼발 무릎
-        // public Transform cm_j_r_leg_knee; // 오른발 무릎
+        // public Transform tf_j_neck; // 목
+        // public Transform tf_j_head; // 머리
 
-        // public Transform cm_j_l_leg_low; // 왼발 종아리
-        // public Transform cm_j_r_leg_low; // 오른발 종아리
+        // public Transform ik_target_l_foot;
+        // public Transform ik_target_r_foot;
 
-
-        // public Transform cm_j_l_toe; // 왼발 발가락
-        // public Transform cm_j_r_toe; // 오른발 발가락
-
-        // public Transform cm_j_neck; // 목
-
-        // public Transform cm_j_hip; // hip
-
-        // public Transform cm_j_spine_up; // 허리 하단
-        // public Transform cm_j_spine_down; // 허리 하단
+        // public Transform ik_target_l_thigh;
+        // public Transform ik_target_r_thigh;
         
+        // public Transform ik_target_l_knee;
+        // public Transform ik_target_r_knee;
+        // public float ik_weight;
+#if FEATURE_DYNAMIC_POSITION_CHANGE_SUPPORT
+        public LegIKData l_leg_ik_data;
+        public LegIKData r_leg_ik_data;
+        public HeadIKData head_ik_data;
+#endif        
         public RealHumanData()
         {
         }        
     }
-        struct BArea
+#if FEATURE_DYNAMIC_POSITION_CHANGE_SUPPORT
+    public class  LegIKData {
+        public Transform thigh;
+        public Transform knee;
+        public Transform foot;
+
+        public Transform target;
+        public Transform pole;
+        public float weight;
+    }
+
+    public class  HeadIKData {
+        public Transform neck;
+        public Transform head;
+                
+        public Quaternion baseNeckRotation;
+        public Quaternion baseHeadRotation;
+
+        public Vector2 inputEuler;
+
+        public float weight;
+
+        public HeadIKData()
+        {
+            this.inputEuler = new Vector2.zero;
+            this.weight = 1f;
+        }       
+    }
+
+#endif
+    struct BArea
     {
         public float X { get; set; }
         public float Y { get; set; }
