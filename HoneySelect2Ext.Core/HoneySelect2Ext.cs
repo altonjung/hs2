@@ -56,12 +56,17 @@ namespace HoneySelect2Ext
     {
         #region Constants
         public const string Name = "HoneySelect2Ext";
-        public const string Version = "0.9.0.1";
+        public const string Version = "0.9.0.0";
         public const string GUID = "com.alton.illusionplugins.HoneySelect2Ext";
         internal const string _ownerId = "HoneySelect2Ext";
+#if FEATURE_PUBLIC_RELEASE
+        internal const int VIDEO_MAX_COUNT = 2;
+#else
+        internal const int VIDEO_MAX_COUNT = 10;
+#endif
+
 #if KOIKATSU || AISHOUJO || HONEYSELECT2
         private const int _saveVersion = 0;
-        private const string _extSaveKey = "HoneySelect2Ext";
 #endif
         #endregion
 
@@ -85,11 +90,7 @@ namespace HoneySelect2Ext
 
         internal string _video_myroom_desk_opended_scene_path = Application.dataPath + "/video_scene/myroom/desk_opened/";
 
-        internal string _video_myroom_desk_closed_scene_path = Application.dataPath + "/video_scene/myroom/desk_closed/";
-
         internal string _video_myroom_door_opended_scene_path = Application.dataPath + "/video_scene/myroom/door_opended/";
-
-        internal string _video_myroom_door_closed_scene_path = Application.dataPath + "/video_scene/myroom/door_closed/";
 
         internal GameObject titleSceneVideoObj;
         internal GameObject myroomSceneVideoObj;
@@ -109,7 +110,8 @@ namespace HoneySelect2Ext
 
 
         #region Accessors
-        internal static ConfigEntry<KeyboardShortcut> ConfigMainWindowShortcut { get; private set; }
+        // internal static ConfigEntry<KeyboardShortcut> ConfigMainWindowShortcut { get; private set; }
+        internal static ConfigEntry<bool> VideoModeActive { get; private set; }
         #endregion
 
 
@@ -142,32 +144,33 @@ namespace HoneySelect2Ext
             } else
             {
                 _isAvaiableTitleVideo = false;
-            }
-            
+            }            
 
-            if (GetVideoFiles(_self._video_myroom_scene_path).Count > 0)
-            {
-                _isAvaiableMyroomVideo = true;
-            } else
-            {
-                _isAvaiableMyroomVideo = false;
-            }
+            // if (GetVideoFiles(_self._video_myroom_scene_path).Count > 0)
+            // {
+            //     _isAvaiableMyroomVideo = true;
+            // } else
+            // {
+            //     _isAvaiableMyroomVideo = false;
+            // }
 
-            if (GetVideoFiles(_self._video_myroom_desk_opended_scene_path).Count > 0 && GetVideoFiles(_self._video_myroom_desk_closed_scene_path).Count > 0)
-            {
-                _isAvaiableMyroomDeskVideo = true;
-            } else
-            {
-                _isAvaiableMyroomDeskVideo = false;
-            }
+            // if (GetVideoFiles(_self._video_myroom_desk_opended_scene_path).Count > 0)
+            // {
+            //     _isAvaiableMyroomDeskVideo = true;
+            // } else
+            // {
+            //     _isAvaiableMyroomDeskVideo = false;
+            // }
 
-            if (GetVideoFiles(_self._video_myroom_door_opended_scene_path).Count > 0 && GetVideoFiles(_self._video_myroom_door_closed_scene_path).Count > 0)
-            {
-                _isAvaiableMyroomDoorVideo = true;
-            } else
-            {
-                _isAvaiableMyroomDoorVideo = false;
-            }
+            // if (GetVideoFiles(_self._video_myroom_door_opended_scene_path).Count > 0)
+            // {
+            //     _isAvaiableMyroomDoorVideo = true;
+            // } else
+            // {
+            //     _isAvaiableMyroomDoorVideo = false;
+            // }
+
+            VideoModeActive = Config.Bind("InGame", "Video Play", true, new ConfigDescription("Enable/Disable"));
 
         }
 
@@ -224,18 +227,18 @@ namespace HoneySelect2Ext
         #region Patches
 
 
-    // 1️⃣ 비디오 전용 카메라
-        private static void CreateBackgroundCamera()
-        {
-            GameObject go = new GameObject("BG_Camera");
-            Camera cam = go.AddComponent<Camera>();
+    // // 1️⃣ 비디오 전용 카메라
+    //     private static void CreateBackgroundCamera()
+    //     {
+    //         GameObject go = new GameObject("BG_Camera");
+    //         Camera cam = go.AddComponent<Camera>();
 
-            cam.clearFlags = CameraClearFlags.SolidColor;
-            cam.backgroundColor = Color.black;
-            cam.depth = 0;
+    //         cam.clearFlags = CameraClearFlags.SolidColor;
+    //         cam.backgroundColor = Color.black;
+    //         cam.depth = 0;
 
-            cam.cullingMask = 1 << LayerMask.NameToLayer("VideoBG");
-        }
+    //         cam.cullingMask = 1 << LayerMask.NameToLayer("VideoBG");
+    //     }
 
         public static List<string> GetVideoFiles(string folderPath)
         {
@@ -258,9 +261,9 @@ namespace HoneySelect2Ext
             return mp4List;
         }
 
-private static void PlayTitleSceneVideo(string videoPath) {
+        private static void PlayTitleSceneVideo(string videoPath) {
 
-            UnityEngine.Debug.Log($">> PlayTitleSceneVideo in TitleScene");
+            // UnityEngine.Debug.Log($">> PlayTitleSceneVideo in TitleScene");
             // 1. 메인 카메라 확보
             Camera cam = Camera.main ;
             if (cam == null)
@@ -281,7 +284,7 @@ private static void PlayTitleSceneVideo(string videoPath) {
                 _self.titleSceneVideoPlayer.url = videoPath;
 
                 _self.titleSceneVideoPlayer.playOnAwake = false;
-                _self.titleSceneVideoPlayer.isLooping = true;
+                _self.titleSceneVideoPlayer.isLooping = false;
                 _self.titleSceneVideoPlayer.audioOutputMode = UnityEngine.Video.VideoAudioOutputMode.None;
 
                 // 2. 카메라 Near Plane 출력 (Quad 없음)
@@ -293,13 +296,20 @@ private static void PlayTitleSceneVideo(string videoPath) {
                 _self.titleSceneVideoPlayer.targetCameraAlpha = 1.0f;
 
                 // 3. 준비 후 재생
+                _self.titleSceneVideoPlayer.prepareCompleted -= OnPrepared; // ★ 추가
+                _self.titleSceneVideoPlayer.prepareCompleted += OnPrepared; // ★ 교체
                 _self.titleSceneVideoPlayer.Prepare();
-                _self.titleSceneVideoPlayer.prepareCompleted += _ =>
-                {
-                    _self.titleSceneVideoPlayer.Play();
-                };   
             }
         }
+
+        private static void OnPrepared(UnityEngine.Video.VideoPlayer vp)
+        {
+            vp.prepareCompleted -= OnPrepared; // 1회용
+            vp.Play();
+
+            UnityEngine.Debug.Log($">> OnPrepared {vp.isLooping}");
+        }
+
 
         private static void PlayMyroomSceneVideo(string videoPath) {
 
@@ -375,7 +385,7 @@ private static void PlayTitleSceneVideo(string videoPath) {
         }
 
 
-// COmmon
+// Common
         [HarmonyPatch(typeof(Manager.BaseMap), "ChangeAsync", typeof(int), typeof(FadeCanvas.Fade), typeof(bool))]
         private static class BaseMap_ChangeAsync_Patches
         {
@@ -398,27 +408,27 @@ private static void PlayTitleSceneVideo(string videoPath) {
             }
         }
 
-        [HarmonyPatch(typeof(Manager.Sound), "Play",  typeof(Manager.Sound.Loader))]
-        private static class Sound_Play_Patches
-        {
-           private static bool Prefix(Manager.Sound __instance, Manager.Sound.Loader loader)
-           {    
-                // UnityEngine.Debug.Log(Environment.StackTrace);
-                Scene scene = SceneManager.GetActiveScene();
-                UnityEngine.Debug.Log($">> Play in Sound  {loader.bundle}, {loader.asset}");
+        // [HarmonyPatch(typeof(Manager.Sound), "Play",  typeof(Manager.Sound.Loader))]
+        // private static class Sound_Play_Patches
+        // {
+        //    private static bool Prefix(Manager.Sound __instance, Manager.Sound.Loader loader)
+        //    {    
+        //         // UnityEngine.Debug.Log(Environment.StackTrace);
+        //         Scene scene = SceneManager.GetActiveScene();
+        //         // UnityEngine.Debug.Log($">> Play in Sound  {loader.bundle}, {loader.asset}");
 
-                if (scene.name.Contains("Title") || scene.name.Contains("NightPool"))
-                {
-                    // title 맵은 로딩 제외
-                    if (_self._isAvaiableTitleVideo && loader.asset.Contains("hs2a_bgm_00"))  // title 에서 배경음
-                    {
-                        return false;
-                    }
-                }
+        //         if (scene.name.Contains("Title") || scene.name.Contains("NightPool"))
+        //         {
+        //             // title 맵은 로딩 제외
+        //             if (_self._isAvaiableTitleVideo && loader.asset.Contains("hs2a_bgm_00"))  // title 에서 배경음
+        //             {
+        //                 return false;
+        //             }
+        //         }
 
-                return true;
-            }
-        }
+        //         return true;
+        //     }
+        // }
 
         [HarmonyPatch(typeof(Actor.CharaData), "SetRoot", typeof(GameObject))]
         private static class CharaData_SetRoot_Patches
@@ -438,13 +448,13 @@ private static void PlayTitleSceneVideo(string videoPath) {
                     }
                 }
 
-                if (scene.name.Contains("MyRoom"))
-                {
-                    if (_self._isAvaiableMyroomVideo)
-                    {
-                        root.SetActive(false);
-                    }
-                }
+                // if (scene.name.Contains("MyRoom"))
+                // {
+                //     if (_self._isAvaiableMyroomVideo)
+                //     {
+                //         root.SetActive(false);
+                //     }
+                // }
 
                 return true;
             }
@@ -455,6 +465,9 @@ private static void PlayTitleSceneVideo(string videoPath) {
         {
            private static bool Prefix(FadeCanvas __instance, FadeCanvas.Fade fade, bool throwOnError = false)
            {
+                if (!VideoModeActive.Value)
+                    return true;
+
                 //    UnityEngine.Debug.Log(Environment.StackTrace);
                 Scene scene = SceneManager.GetActiveScene();
                 List<string> video_files  = new List<string>();
@@ -467,24 +480,24 @@ private static void PlayTitleSceneVideo(string videoPath) {
                     video_files =  GetVideoFiles(video_path);
                 }
 
-                if (scene.name.Contains("MyRoom")) {
-                    video_path = _self._video_myroom_scene_path;
-                    video_files =  GetVideoFiles(video_path);
-                }
+                // if (scene.name.Contains("MyRoom")) {
+                //     video_path = _self._video_myroom_scene_path;
+                //     video_files =  GetVideoFiles(video_path);
+                // }
                 
 
                 if (video_files.Count > 0)
                 {                      
-                    int idx = UnityEngine.Random.Range(0, video_files.Count);
+                    int idx = UnityEngine.Random.Range(0, Mathf.Min(VIDEO_MAX_COUNT, video_files.Count));
                     string path = video_path + video_files[idx];
 
                     if (scene.name.Contains("Title") || scene.name.Contains("NightPool")) {
                         PlayTitleSceneVideo(path);
                     }
 
-                    if (scene.name.Contains("MyRoom")) {
-                        PlayMyroomSceneVideo(path);
-                    }
+                    // if (scene.name.Contains("MyRoom")) {
+                    //     PlayMyroomSceneVideo(path);
+                    // }
                 }
 
                return true;        
@@ -497,6 +510,9 @@ private static void PlayTitleSceneVideo(string videoPath) {
         {
            private static bool Prefix(HS2.TitleScene __instance)
            {    
+                if (!VideoModeActive.Value)
+                    return true;
+                                
                 // UnityEngine.Debug.Log($">> OnPlay");
                 if (_self.titleSceneVideoPlayer.isPlaying)
                 {
@@ -512,6 +528,9 @@ private static void PlayTitleSceneVideo(string videoPath) {
         {
            private static bool Prefix(HS2.TitleScene __instance)
            {
+                if (!VideoModeActive.Value)
+                    return true;
+
             //    UnityEngine.Debug.Log($">> OnUpload");
                if (_self.titleSceneVideoPlayer.isPlaying)
                {
@@ -527,6 +546,9 @@ private static void PlayTitleSceneVideo(string videoPath) {
         {
            private static bool Prefix(HS2.TitleScene __instance)
            {
+                if (!VideoModeActive.Value)
+                    return true;
+                                
             //    UnityEngine.Debug.Log($">> OnDownload");
                if (_self.titleSceneVideoPlayer.isPlaying)
                {
@@ -542,6 +564,9 @@ private static void PlayTitleSceneVideo(string videoPath) {
         {
            private static bool Prefix(HS2.TitleScene __instance)
            {
+                if (!VideoModeActive.Value)
+                    return true;
+
             //    UnityEngine.Debug.Log($">> OnDownloadAI");
                if (_self.titleSceneVideoPlayer.isPlaying)
                {
@@ -557,6 +582,9 @@ private static void PlayTitleSceneVideo(string videoPath) {
         {
            private static bool Prefix(HS2.TitleScene __instance)
            {
+                if (!VideoModeActive.Value)
+                    return true;
+
                 // UnityEngine.Debug.Log($">> OnMakeFemale");
                 if (_self.titleSceneVideoPlayer.isPlaying)
                 {
@@ -572,6 +600,9 @@ private static void PlayTitleSceneVideo(string videoPath) {
         {
            private static bool Prefix(HS2.TitleScene __instance)
            {
+                if (!VideoModeActive.Value)
+                    return true;
+
                 // UnityEngine.Debug.Log($">> OnMakeMale");
                 if (_self.titleSceneVideoPlayer.isPlaying)
                 {
@@ -582,7 +613,7 @@ private static void PlayTitleSceneVideo(string videoPath) {
             }
         }
 // Myroom Scene
-
+#if FEATURE_MYROOM_SUPPORT
         [HarmonyPatch(typeof(Manager.HomeSceneManager), "AnimationDoor", typeof(bool))]
         private static class HomeSceneManager_AnimationDoor_Patches
         {
@@ -598,14 +629,12 @@ private static void PlayTitleSceneVideo(string videoPath) {
                     if (_isOpen)
                     {
                         video_path = _self._video_myroom_door_opended_scene_path; ;
-                    } else
-                    {   
-                        video_path = _self._video_myroom_door_closed_scene_path;
+                        video_files =  GetVideoFiles(video_path);  
+                        int idx = UnityEngine.Random.Range(0, video_files.Count);
+                        string path = video_path + video_files[idx];
+                        PlayMyroomSceneVideo(path);
                     }
-                    video_files =  GetVideoFiles(video_path);  
-                    int idx = UnityEngine.Random.Range(0, video_files.Count);
-                    string path = video_path + video_files[idx];
-                    PlayMyroomSceneVideo(path);
+
                     return false;   
                 }
             //    UnityEngine.Debug.Log(Environment.StackTrace);
@@ -627,14 +656,12 @@ private static void PlayTitleSceneVideo(string videoPath) {
                     if (_isOpen)
                     {
                         video_path = _self._video_myroom_desk_opended_scene_path; ;
-                    } else
-                    {   
-                        video_path = _self._video_myroom_desk_closed_scene_path;
+                        video_files =  GetVideoFiles(video_path);  
+                        int idx = UnityEngine.Random.Range(0, video_files.Count);
+                        string path = video_path + video_files[idx];
+                        PlayMyroomSceneVideo(path);
                     }
-                    video_files =  GetVideoFiles(video_path);  
-                    int idx = UnityEngine.Random.Range(0, video_files.Count);
-                    string path = video_path + video_files[idx];
-                    PlayMyroomSceneVideo(path);
+
                     return false;
                 }
             //    UnityEngine.Debug.Log(Environment.StackTrace);
@@ -657,20 +684,20 @@ private static void PlayTitleSceneVideo(string videoPath) {
                     if (_isOpen)
                     {
                         video_path = _self._video_myroom_desk_opended_scene_path; ;
-                    } else
-                    {   
-                        video_path = _self._video_myroom_desk_closed_scene_path;
-                    }
-                    video_files =  GetVideoFiles(video_path);  
-                    int idx = UnityEngine.Random.Range(0, video_files.Count);
-                    string path = video_path + video_files[idx];
-                    PlayMyroomSceneVideo(path);
+                        video_files =  GetVideoFiles(video_path);  
+                        int idx = UnityEngine.Random.Range(0, video_files.Count);
+                        string path = video_path + video_files[idx];
+                        PlayMyroomSceneVideo(path);
+                    } 
+                    
                     return false;
                 }
             //    UnityEngine.Debug.Log(Environment.StackTrace);
                return true;        
            }
         }     
+#endif
+
 // Voice
         // [HarmonyPatch(typeof(Manager.Voice), "Play", typeof(Manager.Voice.Loader))]
         // private static class Voice_Play_Patches

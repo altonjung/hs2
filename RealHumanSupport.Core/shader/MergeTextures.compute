@@ -1,0 +1,231 @@
+// #pragma kernel CSMain
+
+// struct BAreaData
+// {
+//     float X;
+//     float Y;
+//     float RadiusX;
+//     float RadiusY;
+//     float Strong;
+//     float BumpBooster;
+// };
+
+// StructuredBuffer<BAreaData> Areas;
+// int AreaCount;
+
+// Texture2D<float4> TexA;
+// Texture2D<float4> TexB;
+// RWTexture2D<float4> Result;
+
+// int Width;
+// int Height;
+
+// [numthreads(8, 8, 1)]
+// void CSMain(uint3 id : SV_DispatchThreadID)
+// {
+//     if (id.x >= Width || id.y >= Height)
+//         return;
+
+//     float4 colA = TexA[int2(id.xy)];
+//     float4 colB = TexB[int2(id.xy)];
+
+//     float4 cur = colA;
+
+//     for (int i = 0; i < AreaCount; i++)
+//     {
+//         BAreaData area = Areas[i];
+
+//         float rx = area.RadiusX > 0 ? area.RadiusX : area.RadiusY;
+//         float ry = area.RadiusY > 0 ? area.RadiusY : area.RadiusX;
+//         if (rx <= 0 || ry <= 0)
+//             continue;
+
+//         float invRx = 1.0 / rx;
+//         float invRy = 1.0 / ry;
+
+//         float areaY = (Height - 1) - area.Y;
+
+//         float dx = id.x - area.X;
+//         float dy = id.y - areaY;
+
+//         float nx = dx * invRx;
+//         float ny = dy * invRy;
+//         float ellipseVal = nx * nx + ny * ny;
+//         if (ellipseVal > 1.0)
+//             continue;
+
+//         float t = sqrt(ellipseVal);
+//         float falloff = saturate(1.0 - t * t * t);
+
+//         // ===== RGB =====
+//         float rgbWeight = saturate(area.BumpBooster) * falloff;
+//         cur.g = lerp(cur.g, colB.g, rgbWeight);
+//         cur.b = lerp(cur.b, colB.b, rgbWeight);
+
+//         // ===== Alpha =====
+//         float alphaBooster = max(1.0, area.Strong);
+//         float boostFactor = lerp(1.0, alphaBooster, falloff);
+//         float boostedBAlpha = saturate(colB.a * boostFactor);
+//         cur.a = lerp(cur.a, boostedBAlpha, falloff);
+
+//         cur.r = 1.0;
+//     }
+
+//     Result[int2(id.xy)] = cur;
+// }
+
+
+
+// #pragma kernel CSMain
+
+// struct BAreaData
+// {
+//     float X;
+//     float Y;
+//     float RadiusX;
+//     float RadiusY;
+//     float Strong;
+//     float BumpBooster; // 사용 안 함
+// };
+
+// StructuredBuffer<BAreaData> Areas;
+// int AreaCount;
+
+// Texture2D<float4> TexA;
+// Texture2D<float4> TexB;
+// RWTexture2D<float4> Result;
+
+// int Width;
+// int Height;
+
+// [numthreads(8, 8, 1)]
+// void CSMain(uint3 id : SV_DispatchThreadID)
+// {
+//     if (id.x >= Width || id.y >= Height)
+//         return;
+
+//     float4 colA = TexA[int2(id.xy)];
+//     float4 colB = TexB[int2(id.xy)];
+
+//     float4 cur = colA;
+
+//     for (int i = 0; i < AreaCount; i++)
+//     {
+//         BAreaData area = Areas[i];
+
+//         float rx = area.RadiusX > 0 ? area.RadiusX : area.RadiusY;
+//         float ry = area.RadiusY > 0 ? area.RadiusY : area.RadiusX;
+//         if (rx <= 0 || ry <= 0)
+//             continue;
+
+//         float invRx = 1.0 / rx;
+//         float invRy = 1.0 / ry;
+
+//         float areaY = (Height - 1) - area.Y;
+
+//         float dx = id.x - area.X;
+//         float dy = id.y - areaY;
+
+//         float nx = dx * invRx;
+//         float ny = dy * invRy;
+//         float ellipseVal = nx * nx + ny * ny;
+//         if (ellipseVal > 1.0)
+//             continue;
+
+//         float t = sqrt(ellipseVal);
+//         float falloff = saturate(1.0 - t * t * t);
+
+//         // ===== RGB : Merge ONLY (no boost) =====
+//         cur.g = lerp(cur.g, colB.g, falloff);
+//         cur.b = lerp(cur.b, colB.b, falloff);
+
+//         // ===== Alpha : Boosting =====
+//         float alphaBooster = max(1.0, area.Strong);
+//         float boostFactor = lerp(1.0, alphaBooster, falloff);
+//         float boostedAlpha = saturate(colB.a * boostFactor);
+
+//         cur.a = lerp(cur.a, boostedAlpha, falloff);
+
+//         // HS2 규칙
+//         cur.r = 1.0;
+//     }
+
+//     Result[int2(id.xy)] = cur;
+// }
+
+
+#pragma kernel CSMain
+
+struct BAreaData
+{
+    float X;
+    float Y;
+    float RadiusX;
+    float RadiusY;
+    float Strong;
+    float BumpBooster; // 사용 안 함
+};
+
+StructuredBuffer<BAreaData> Areas;
+int AreaCount;
+
+Texture2D<float4> TexA;
+Texture2D<float4> TexB;
+RWTexture2D<float4> Result;
+
+int Width;
+int Height;
+
+[numthreads(8, 8, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= Width || id.y >= Height)
+        return;
+
+    float4 colA = TexA[int2(id.xy)];
+    float4 colB = TexB[int2(id.xy)];
+
+    // RGB는 TexA 그대로 유지
+    float4 cur = colA;
+
+    for (int i = 0; i < AreaCount; i++)
+    {
+        BAreaData area = Areas[i];
+
+        float rx = area.RadiusX > 0 ? area.RadiusX : area.RadiusY;
+        float ry = area.RadiusY > 0 ? area.RadiusY : area.RadiusX;
+        if (rx <= 0 || ry <= 0)
+            continue;
+
+        float invRx = 1.0 / rx;
+        float invRy = 1.0 / ry;
+
+        float areaY = (Height - 1) - area.Y;
+
+        float dx = id.x - area.X;
+        float dy = id.y - areaY;
+
+        float nx = dx * invRx;
+        float ny = dy * invRy;
+        float ellipseVal = nx * nx + ny * ny;
+        if (ellipseVal > 1.0)
+            continue;
+
+        float t = sqrt(ellipseVal);
+        float falloff = saturate(1.0 - t * t * t);
+
+        // ===== Alpha ONLY Boost =====
+        float alphaBooster = max(1.0, area.Strong);
+        float boostFactor = lerp(1.0, alphaBooster, falloff);
+
+        float boostedAlpha = saturate(colB.a * boostFactor);
+
+        // TexA alpha → boosted TexB alpha 로 전이
+        cur.a = lerp(cur.a, boostedAlpha, falloff);
+
+        // HS2 bump 규칙
+        cur.r = 1.0;
+    }
+
+    Result[int2(id.xy)] = cur;
+}

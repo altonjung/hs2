@@ -30,7 +30,7 @@
     <DebugType>embedded</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>..\bin\HS2\</OutputPath>
-    <DefineConstants>TRACE;HONEYSELECT2;BEPINEX;</DefineConstants>
+    <DefineConstants>TRACE;HONEYSELECT2;BEPINEX;FEATURE_PUBLIC_RELEASE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -87,11 +87,11 @@
     <Reference Include="UnityEngine.AudioModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\IllusionLibs.KoikatsuSunshine.UnityEngine.AudioModule.2019.4.9\lib\net46\UnityEngine.AudioModule.dll</HintPath>
       <Private>False</Private>
-    </Reference>     
+    </Reference>
     <Reference Include="UnityEngine.VideoModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
       <HintPath>..\packages\HoneySelect2Ext\lib\UnityEngine.VideoModule.dll</HintPath>
       <Private>False</Private>
-    </Reference>        
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
@@ -127,7 +127,7 @@
     <Reference Include="UnityEngine.AnimationModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\IllusionLibs.HoneySelect2.UnityEngine.AnimationModule.2018.4.11.4\lib\net46\UnityEngine.AnimationModule.dll</HintPath>
       <Private>False</Private>
-    </Reference>    
+    </Reference>
     <Reference Include="UnityEngine.AssetBundleModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\IllusionLibs.HoneySelect2.UnityEngine.AssetBundleModule.2018.4.11.4\lib\net46\UnityEngine.AssetBundleModule.dll</HintPath>
       <Private>False</Private>
@@ -151,9 +151,6 @@
     <Reference Include="UnityEngine.UIModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\IllusionLibs.HoneySelect2.UnityEngine.UIModule.2018.4.11.4\lib\net46\UnityEngine.UIModule.dll</HintPath>
       <Private>False</Private>
-    </Reference>     
-    <Reference Include="HS2_PregnancyPlus">
-      <HintPath>.\HS2_PregnancyPlus.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>

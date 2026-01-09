@@ -14,7 +14,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.Rendering;
 using System.Threading.Tasks;
-
+using System.Security.Cryptography.X509Certificates;
 
 #if AISHOUJO || HONEYSELECT2
 using CharaUtils;
@@ -22,9 +22,10 @@ using ExtensibleSaveFormat;
 using AIChara;
 using System.Security.Cryptography;
 using ADV.Commands.Camera;
-using KKAPI.Studio;
-using IllusionUtility.GetUtility;
 using ADV.Commands.Object;
+using IllusionUtility.GetUtility;
+using KKAPI.Studio;
+using KKAPI.Maker;
 #endif
 
 #if AISHOUJO || HONEYSELECT2
@@ -35,43 +36,90 @@ namespace RealHumanSupport
 {
     public class Logic
     {
-        #region Private Methods                        
-        internal static DynamicBoneCollider AddDynamicBoneCollider(
+        #region Private Methods            
+
+        internal static void DeleteExtraDynamicBoneCollider(GameObject pivotObj)
+        {
+
+            if (RealHumanSupport._self.extraColliderDebugObjAdded) {
+                Transform[] children = pivotObj.GetComponentsInChildren<Transform>(true);
+
+                for (int i = 0; i < children.Length; i++)
+                {
+                    Transform t = children[i];
+
+                    // 자기 자신은 제외
+                    if (t == pivotObj.transform)
+                        continue;
+
+                    if (t.name.Contains("_DBC_DebugSphere")  || t.name.Contains("_DBC_CapEndA") || t.name.Contains("_DBC_CapEndB") || t.name.Contains("_DBC_CapBody"))
+                    {
+                        UnityEngine.Object.Destroy(t.gameObject);
+                    }
+                }
+            }
+
+            RealHumanSupport._self.extraColliderDebugObjAdded = false;
+        }
+
+        internal static DynamicBoneCollider AddExtraDynamicBoneCollider(
             Transform target,
             DynamicBoneColliderBase.Direction direction,
             float radius,
             float height,
             Vector3 offset)
         {
-            string pivotName    = target.name + "_DBC_Pivot";
+            string pivotName = target.name + "_DBC_Pivot";
             string colliderName = target.name + "_DynamicBoneCollider";
 
+            // ===============================
+            // 0. 로컬 헬퍼
+            // ===============================
+            void RemoveCollider(GameObject go)
+            {
+                Collider col = go.GetComponent<Collider>();
+                if (col != null)
+                    UnityEngine.Object.Destroy(col);
+            }
+
+            void SetupDebugRenderer(GameObject go)
+            {
+                MeshRenderer r = go.GetComponent<MeshRenderer>();
+                if (r != null)
+                {
+                    r.material = new Material(r.sharedMaterial);
+                    r.material.color = new Color(0f, 1f, 0f, 0.25f);
+                }
+
+                go.layer = LayerMask.NameToLayer("Ignore Raycast");
+            }
+
+            // ===============================
             // 1. Pivot 생성 / 재사용
+            // ===============================
             Transform pivotTf = target.Find(pivotName);
             if (pivotTf == null)
             {
                 GameObject pivotObj = new GameObject(pivotName);
-
                 pivotObj.transform.SetParent(target, true);
                 pivotObj.transform.localPosition = Vector3.zero;
                 pivotObj.transform.localRotation = Quaternion.identity;
-                pivotObj.transform.localScale    = Vector3.one;
-
+                pivotObj.transform.localScale = Vector3.one;
                 pivotTf = pivotObj.transform;
             }
 
+            // ===============================
             // 2. Collider 생성 / 재사용
+            // ===============================
             Transform colliderTf = pivotTf.Find(colliderName);
             DynamicBoneCollider dbc;
 
             if (colliderTf == null)
             {
                 GameObject colliderObj = new GameObject(colliderName);
-
                 colliderObj.transform.SetParent(pivotTf, true);
                 colliderObj.transform.localPosition = Vector3.zero;
                 colliderObj.transform.localRotation = Quaternion.identity;
-
                 dbc = colliderObj.AddComponent<DynamicBoneCollider>();
                 colliderTf = colliderObj.transform;
             }
@@ -82,118 +130,79 @@ namespace RealHumanSupport
                     dbc = colliderTf.gameObject.AddComponent<DynamicBoneCollider>();
             }
 
+            // ===============================
             // 3. 값 갱신
-            dbc.m_Radius    = radius;
-            dbc.m_Height    = height;
+            // ===============================
+            dbc.m_Radius = radius;
+            dbc.m_Height = height;
             dbc.m_Direction = direction;
-            dbc.m_Bound     = DynamicBoneColliderBase.Bound.Outside;
-            dbc.m_Center    = offset;
+            dbc.m_Bound = DynamicBoneColliderBase.Bound.Outside;
+            dbc.m_Center = offset;
 
-            // ===== 4. 구형 디버그 스피어 =====
-            if (RealHumanSupport.ExtraBoneDebug.Value) {
+            // ===============================
+            // 4. Debug Visualization
+            // ===============================
+            string debugName = target.name + "_DBC_DebugSphere";
+            string capEndAName = target.name + "_DBC_CapEndA";
+            string capEndBName = target.name + "_DBC_CapEndB";
+            string capBodyName = target.name + "_DBC_CapBody";
 
-                string debugName    = target.name + "_DBC_DebugSphere";
-                string capEndAName  = target.name + "_DBC_CapEndA";
-                string capEndBName  = target.name + "_DBC_CapEndB";
-                string capBodyName  = target.name + "_DBC_CapBody";
-                
+            if (RealHumanSupport.ExtraColliderDebug.Value)
+            {
+                // ----- Sphere -----
                 Transform debugTf = pivotTf.Find(debugName);
                 if (debugTf == null)
                 {
-                    GameObject debugObj = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                    debugObj.name = debugName;
-
-                    var sphereCol = debugObj.GetComponent<Collider>();
-                    if (sphereCol != null)
-                        GameObject.DestroyImmediate(sphereCol);
-
-                    debugObj.transform.SetParent(pivotTf, true);
-                    debugTf = debugObj.transform;
-
-                    var renderer = debugObj.GetComponent<MeshRenderer>();
-                    if (renderer != null)
-                    {
-                        renderer.material = new Material(renderer.sharedMaterial);
-                        renderer.material.color = Color.green;
-                    }
+                    GameObject go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                    go.name = debugName;
+                    RemoveCollider(go);
+                    SetupDebugRenderer(go);
+                    go.transform.SetParent(pivotTf, true);
+                    debugTf = go.transform;
                 }
 
-                // 실제 중심
                 Vector3 centerWorld = colliderTf.TransformPoint(dbc.m_Center);
-                debugTf.position    = centerWorld;
-                debugTf.localScale  = Vector3.one * (radius * 2f);
+                debugTf.position = centerWorld;
+                debugTf.localScale = Vector3.one * (radius * 2f);
 
-                // ===== 5. 캡슐 디버그 (height > 0) =====
-                // 없애고 싶으면 height <= 0 일 때 비활성화만 하면 됨
+                // ----- Capsule -----
                 Transform capEndATf = pivotTf.Find(capEndAName);
                 Transform capEndBTf = pivotTf.Find(capEndBName);
                 Transform capBodyTf = pivotTf.Find(capBodyName);
 
-                // 필요 시 생성
                 if (capEndATf == null)
                 {
-                    GameObject capEndAObj = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                    capEndAObj.name = capEndAName;
-
-                    var col = capEndAObj.GetComponent<Collider>();
-                    if (col != null)
-                        GameObject.DestroyImmediate(col);
-
-                    capEndAObj.transform.SetParent(pivotTf, true);
-                    capEndATf = capEndAObj.transform;
-
-                    var r = capEndAObj.GetComponent<MeshRenderer>();
-                    if (r != null)
-                    {
-                        r.material = new Material(r.sharedMaterial);
-                        r.material.color = Color.green;
-                    }
+                    GameObject go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                    go.name = capEndAName;
+                    RemoveCollider(go);
+                    SetupDebugRenderer(go);
+                    go.transform.SetParent(pivotTf, true);
+                    capEndATf = go.transform;
                 }
 
                 if (capEndBTf == null)
                 {
-                    GameObject capEndBObj = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                    capEndBObj.name = capEndBName;
-
-                    var col = capEndBObj.GetComponent<Collider>();
-                    if (col != null)
-                        GameObject.DestroyImmediate(col);
-
-                    capEndBObj.transform.SetParent(pivotTf, true);
-                    capEndBTf = capEndBObj.transform;
-
-                    var r = capEndBObj.GetComponent<MeshRenderer>();
-                    if (r != null)
-                    {
-                        r.material = new Material(r.sharedMaterial);
-                        r.material.color = Color.green;
-                    }
+                    GameObject go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                    go.name = capEndBName;
+                    RemoveCollider(go);
+                    SetupDebugRenderer(go);
+                    go.transform.SetParent(pivotTf, true);
+                    capEndBTf = go.transform;
                 }
 
                 if (capBodyTf == null)
                 {
-                    GameObject capBodyObj = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-                    capBodyObj.name = capBodyName;
-
-                    var col = capBodyObj.GetComponent<Collider>();
-                    if (col != null)
-                        GameObject.DestroyImmediate(col);
-
-                    capBodyObj.transform.SetParent(pivotTf, true);
-                    capBodyTf = capBodyObj.transform;
-
-                    var r = capBodyObj.GetComponent<MeshRenderer>();
-                    if (r != null)
-                    {
-                        r.material = new Material(r.sharedMaterial);
-                        r.material.color = Color.green;
-                    }
+                    GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                    go.name = capBodyName;
+                    RemoveCollider(go);
+                    SetupDebugRenderer(go);
+                    go.transform.SetParent(pivotTf, true);
+                    capBodyTf = go.transform;
                 }
 
                 if (height > 0f)
                 {
-                    // DynamicBoneCollider 캡슐 축 방향 계산
-                    Vector3 axisLocal;
+                    Vector3 axisLocal = Vector3.forward;
                     switch (direction)
                     {
                         case DynamicBoneColliderBase.Direction.X:
@@ -209,80 +218,75 @@ namespace RealHumanSupport
                     }
 
                     Vector3 axisWorld = colliderTf.TransformDirection(axisLocal).normalized;
-
-                    // 가운데 원통 부분 길이 (단순화 버전)
                     float bodyLen = Mathf.Max(0f, height - radius * 2f);
 
                     Vector3 p1 = centerWorld + axisWorld * (bodyLen * 0.5f);
                     Vector3 p2 = centerWorld - axisWorld * (bodyLen * 0.5f);
 
-                    // 끝 구 2개
-                    capEndATf.position   = p1;
-                    capEndBTf.position   = p2;
+                    capEndATf.position = p1;
+                    capEndBTf.position = p2;
                     capEndATf.localScale = Vector3.one * (radius * 2f);
                     capEndBTf.localScale = Vector3.one * (radius * 2f);
 
-                    // 몸통 (실린더) – Unity 기본 Cylinder는 Y축이 길이 방향
                     capBodyTf.position = (p1 + p2) * 0.5f;
-                    capBodyTf.up       = (p1 - p2).normalized;
+                    capBodyTf.up = (p1 - p2).normalized;
                     capBodyTf.localScale = new Vector3(
                         radius * 2f,
                         bodyLen * 0.5f,
                         radius * 2f
                     );
 
-                    // 캡슐 디버그 활성
                     capEndATf.gameObject.SetActive(true);
                     capEndBTf.gameObject.SetActive(true);
                     capBodyTf.gameObject.SetActive(true);
                 }
                 else
                 {
-                    // height == 0 이면 캡슐 디버그 숨김 (구만 사용)
                     if (capEndATf != null) capEndATf.gameObject.SetActive(false);
                     if (capEndBTf != null) capEndBTf.gameObject.SetActive(false);
                     if (capBodyTf != null) capBodyTf.gameObject.SetActive(false);
                 }
-            } else
+
+                RealHumanSupport._self.extraColliderDebugObjAdded = true;
+            }
+            else
             {
-                // 여기에서 기존 생성한 디버그 대상 삭제 코드 추가
-                // ===== 디버그 비활성화 시 기존 디버그 오브젝트 정리 =====
-                string debugName    = target.name + "_DBC_DebugSphere";
-                string capEndAName  = target.name + "_DBC_CapEndA";
-                string capEndBName  = target.name + "_DBC_CapEndB";
-                string capBodyName  = target.name + "_DBC_CapBody";
+                void DestroyIfExists(string name)
+                {
+                    Transform t = pivotTf.Find(name);
+                    if (t != null)
+                        UnityEngine.Object.Destroy(t.gameObject);
+                }
 
-                Transform t;
+                DestroyIfExists(debugName);
+                DestroyIfExists(capEndAName);
+                DestroyIfExists(capEndBName);
+                DestroyIfExists(capBodyName);
 
-                t = pivotTf.Find(debugName);
-                if (t != null)
-                    GameObject.DestroyImmediate(t.gameObject);
-
-                t = pivotTf.Find(capEndAName);
-                if (t != null)
-                    GameObject.DestroyImmediate(t.gameObject);
-
-                t = pivotTf.Find(capEndBName);
-                if (t != null)
-                    GameObject.DestroyImmediate(t.gameObject);
-
-                t = pivotTf.Find(capBodyName);
-                if (t != null)
-                    GameObject.DestroyImmediate(t.gameObject);                
+                RealHumanSupport._self.extraColliderDebugObjAdded = false;
             }
 
             return dbc;
         }
 
 
+        internal static void SetTearDrops(ChaControl chaCtrl, RealHumanData realHumanData) {
+            string bone_prefix_str = "cf_";
+            if(chaCtrl.sex == 0)
+                bone_prefix_str = "cm_";
+
+            realHumanData.l_eye_s  = chaCtrl.objAnim.transform.FindLoop(bone_prefix_str+"J_Eye02_s_L");
+            realHumanData.r_eye_s  = chaCtrl.objAnim.transform.FindLoop(bone_prefix_str+"J_Eye02_s_R");      
+        }        
+        
         internal static DynamicBone[] SetHairDown(ChaControl chaCtrl, RealHumanData realHumanData) {
             string bone_prefix_str = "cf_";
             if(chaCtrl.sex == 0)
                 bone_prefix_str = "cm_";
             
-            realHumanData.root_bone = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Root");
-            realHumanData.head_bone = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Head");
-            realHumanData.neck_bone = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Neck");            
+            realHumanData.root_bone = chaCtrl.objAnim.transform.FindLoop(bone_prefix_str+"J_Root");
+            realHumanData.head_bone = chaCtrl.objAnim.transform.FindLoop(bone_prefix_str+"J_Head");
+            realHumanData.neck_bone = chaCtrl.objAnim.transform.FindLoop(bone_prefix_str+"J_Neck");            
 
             DynamicBone[] hairbones = realHumanData.head_bone.GetComponentsInChildren<DynamicBone>(true);  
 
@@ -443,8 +447,12 @@ namespace RealHumanSupport
                     }                    
                 }
 
-                // hair dynamicbone에 finger collider 연결
-                DynamicBone[] hairbones = SetHairDown(chaCtrl, realHumanData);                
+                
+                SetTearDrops(chaCtrl, realHumanData);
+                DynamicBone[] hairbones = SetHairDown(chaCtrl, realHumanData);     
+
+                // hair dynamic bone 연결 대상 finger collider 생성
+                List<DynamicBoneCollider> extraHairColliders = new List<DynamicBoneCollider>();       
 
                 Transform fingerThumb2LObject = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Hand_Thumb02_L");
                 Transform fingerThumb3LObject = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Hand_Thumb03_L");
@@ -470,80 +478,86 @@ namespace RealHumanSupport
                 Transform fingerRing2RObject = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Hand_Ring02_R");
                 Transform fingerRing3RObject = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Hand_Ring03_R");
 
-                List<DynamicBoneCollider> extraFingerColliders = new List<DynamicBoneCollider>();
+                // List<DynamicBoneCollider> extraFingerColliders = new List<DynamicBoneCollider>();
 
-                extraFingerColliders.Add(AddDynamicBoneCollider(fingerThumb2LObject, DynamicBoneColliderBase.Direction.X, 0.07f, 0, new Vector3(0f, 0f, 0f)));
-                extraFingerColliders.Add(AddDynamicBoneCollider(fingerThumb3LObject, DynamicBoneColliderBase.Direction.X, 0.07f, 0, new Vector3(0f, 0f, 0f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerThumb2LObject, DynamicBoneColliderBase.Direction.X, 0.07f, 0, new Vector3(0f, 0f, 0f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerThumb3LObject, DynamicBoneColliderBase.Direction.X, 0.07f, 0, new Vector3(0f, 0f, 0f)));
 
-                extraFingerColliders.Add(AddDynamicBoneCollider(fingerIdx2LObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
-                extraFingerColliders.Add(AddDynamicBoneCollider(fingerIdx3LObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerIdx2LObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerIdx3LObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
 
-                extraFingerColliders.Add(AddDynamicBoneCollider(fingerMiddle2LObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
-                extraFingerColliders.Add(AddDynamicBoneCollider(fingerMiddle3LObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerMiddle2LObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerMiddle3LObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
           
-                extraFingerColliders.Add(AddDynamicBoneCollider(fingerRing2LObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
-                extraFingerColliders.Add(AddDynamicBoneCollider(fingerRing3LObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerRing2LObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerRing3LObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
 
 
-                extraFingerColliders.Add(AddDynamicBoneCollider(fingerThumb2RObject, DynamicBoneColliderBase.Direction.X, 0.07f, 0, new Vector3(0f, 0f, 0f)));
-                extraFingerColliders.Add(AddDynamicBoneCollider(fingerThumb3RObject, DynamicBoneColliderBase.Direction.X, 0.07f, 0, new Vector3(0f, 0f, 0f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerThumb2RObject, DynamicBoneColliderBase.Direction.X, 0.07f, 0, new Vector3(0f, 0f, 0f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerThumb3RObject, DynamicBoneColliderBase.Direction.X, 0.07f, 0, new Vector3(0f, 0f, 0f)));
 
-                extraFingerColliders.Add(AddDynamicBoneCollider(fingerIdx2RObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
-                extraFingerColliders.Add(AddDynamicBoneCollider(fingerIdx3RObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerIdx2RObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerIdx3RObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
 
-                extraFingerColliders.Add(AddDynamicBoneCollider(fingerMiddle2RObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
-                extraFingerColliders.Add(AddDynamicBoneCollider(fingerMiddle3RObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerMiddle2RObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerMiddle3RObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
          
-                extraFingerColliders.Add(AddDynamicBoneCollider(fingerRing2RObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
-                extraFingerColliders.Add(AddDynamicBoneCollider(fingerRing3RObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerRing2RObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerRing3RObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
 
-                foreach (var bone in hairbones)
-                {
-                    if (bone == null)
-                        continue;
+                // foreach (var bone in hairbones)
+                // {
+                //     if (bone == null)
+                //         continue;
 
-                    foreach (var collider in extraFingerColliders)
-                    {
-                        if (collider == null)
-                            continue;
+                //     foreach (var collider in extraFingerColliders)
+                //     {
+                //         if (collider == null)
+                //             continue;
 
-                        if (!bone.m_Colliders.Contains(collider))
-                        {
-                            bone.m_Colliders.Add(collider);
-                        }
-                    }
-                }
+                //         if (!bone.m_Colliders.Contains(collider))
+                //         {
+                //             bone.m_Colliders.Add(collider);
+                //         }
+                //     }
+                // }
 
-                // hair dynamicbone에 추가 collider 연결
-                List<DynamicBoneCollider> extraHairColliders = new List<DynamicBoneCollider>();
+                // hair dynamic bone 연결 대상 shoulder collider 생성                
+                // List<DynamicBoneCollider> extraHairColliders = new List<DynamicBoneCollider>();
                 Transform leftShouderObject = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_ArmUp00_L");
                 Transform rightShouderObject = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_ArmUp00_R");
 
-                Transform spine1Object = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Spine01");
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(leftShouderObject, DynamicBoneColliderBase.Direction.X, RealHumanSupport.ExtraColliderScale.Value * 0.53f, 0.0f , new Vector3(0.0f, -0.38f, -0.06f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(rightShouderObject, DynamicBoneColliderBase.Direction.X, RealHumanSupport.ExtraColliderScale.Value * 0.53f, 0.0f, new Vector3(0.0f, -0.38f, -0.06f)));
+
+                // hair dynamic bone 연결 대상 spine collider 생성
                 Transform spine2Object = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Spine02");
                 Transform spine3Object = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Spine03");
-
-                Transform kosi2Object = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Kosi02");
-
-                extraHairColliders.Add(AddDynamicBoneCollider(leftShouderObject, DynamicBoneColliderBase.Direction.X, 0.6f * RealHumanSupport.ExtraBoneScale.Value, 0.0f , Vector3.zero));
-                extraHairColliders.Add(AddDynamicBoneCollider(rightShouderObject, DynamicBoneColliderBase.Direction.X, 0.6f * RealHumanSupport.ExtraBoneScale.Value, 0.0f, Vector3.zero));
-
-                float spine1_radius = 1.0f;
-                float spine2_radius = 9.5f;
-                float spine3_radius = 1.0f;
-                float kosi2_radius = 1.18f;
                 
+                float spine2_radius = 1.0f;
+                float spine3_radius = 1.15f;
 
-                spine1_radius = spine1_radius * RealHumanSupport.ExtraBoneScale.Value;
-                spine2_radius = spine2_radius * RealHumanSupport.ExtraBoneScale.Value;
-                // spine3_radius = spine3_radius * RealHumanSupport.ExtraBoneScale.Value;
-                kosi2_radius = kosi2_radius * RealHumanSupport.ExtraBoneScale.Value;
+                spine2_radius = spine2_radius * RealHumanSupport.ExtraColliderScale.Value;
+                spine3_radius = spine3_radius * RealHumanSupport.ExtraColliderScale.Value;
 
-                extraHairColliders.Add(AddDynamicBoneCollider(spine1Object, DynamicBoneColliderBase.Direction.Y, spine1_radius, spine1_radius * 3, Vector3.zero));
-                extraHairColliders.Add(AddDynamicBoneCollider(spine2Object, DynamicBoneColliderBase.Direction.Y, spine2_radius, spine2_radius * 3, Vector3.zero));
-                extraHairColliders.Add(AddDynamicBoneCollider(spine2Object, DynamicBoneColliderBase.Direction.Y, spine3_radius, spine3_radius * 3, Vector3.zero));
-                extraHairColliders.Add(AddDynamicBoneCollider(kosi2Object, DynamicBoneColliderBase.Direction.X, kosi2_radius, kosi2_radius * 3, Vector3.zero));
- 
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(spine2Object, DynamicBoneColliderBase.Direction.Y, spine2_radius, spine2_radius * 3.0f, Vector3.zero));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(spine3Object, DynamicBoneColliderBase.Direction.X, spine3_radius, spine3_radius * 2.3f, new Vector3(0.0f, -0.03f, 0.15f)));
+
+                // hair dynamic bone 연결 대상 nipple collider 생성  
+                Transform leftNippleObject = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Mune02_L");
+                Transform rightNippleObject = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Mune02_R");
+
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(leftNippleObject, DynamicBoneColliderBase.Direction.X, 0.35f, 0.35f, new Vector3(0.0f, 0.0f, 0.13f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(rightNippleObject, DynamicBoneColliderBase.Direction.X, 0.35f, 0.35f, new Vector3(0.0f, 0.0f, 0.13f)));
+
+                // hair dynamic bone 연결 대상 골반 collider 생성
+                Transform kosi2Object = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Kosi02");
+                float kosi2_radius = 1.15f;
+                
+                kosi2_radius = kosi2_radius * RealHumanSupport.ExtraColliderScale.Value;
+
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(kosi2Object, DynamicBoneColliderBase.Direction.X, kosi2_radius, kosi2_radius * 3.0f, new Vector3(0.0f, 0.0f, -0.05f)));
+
                 foreach (var bone in hairbones)
                 {
                     if (bone == null)
@@ -752,18 +766,19 @@ namespace RealHumanSupport
         {
             Texture2D headOriginTexture = null;
             Texture2D bodyOriginTexture = null;
-
+#if FEATURE_FACEBUMP_SUPPORT  
             if (realHumanData.m_skin_head.GetTexture(realHumanData.head_bumpmap_name) as Texture2D == null)
                 headOriginTexture = ConvertToTexture2D(realHumanData.m_skin_head.GetTexture(realHumanData.head_bumpmap_name) as RenderTexture);
             else 
                 headOriginTexture = realHumanData.m_skin_head.GetTexture(realHumanData.head_bumpmap_name) as Texture2D;
-
+#endif
             if (realHumanData.m_skin_body.GetTexture(realHumanData.body_bumpmap_name) as Texture2D == null)
                 bodyOriginTexture = ConvertToTexture2D(realHumanData.m_skin_body.GetTexture(realHumanData.body_bumpmap_name) as RenderTexture);
             else
                 bodyOriginTexture = realHumanData.m_skin_body.GetTexture(realHumanData.body_bumpmap_name) as Texture2D;
-
+#if FEATURE_FACEBUMP_SUPPORT  
             realHumanData.headOriginTexture = SetTextureSize(MakeWritableTexture(headOriginTexture), RealHumanSupport._self._faceExpressionFemaleBumpMap2.width, RealHumanSupport._self._faceExpressionFemaleBumpMap2.height);
+#endif            
             realHumanData.bodyOriginTexture = SetTextureSize(MakeWritableTexture(bodyOriginTexture), RealHumanSupport._self._bodyStrongFemale_A_BumpMap2.width, RealHumanSupport._self._bodyStrongFemale_A_BumpMap2.height);
     
             return realHumanData;
@@ -773,7 +788,7 @@ namespace RealHumanSupport
         {
             //UnityEngine.Debug.Log($">> GetMaterials {charCtrl}");
             SkinnedMeshRenderer[] bodyRenderers = charCtrl.objBody.GetComponentsInChildren<SkinnedMeshRenderer>();
-            UnityEngine.Debug.Log($">> bodyRenderers {bodyRenderers.Length}");
+            // UnityEngine.Debug.Log($">> bodyRenderers {bodyRenderers.Length}");
 
             foreach (SkinnedMeshRenderer render in bodyRenderers.ToList())
             {
@@ -824,7 +839,7 @@ namespace RealHumanSupport
             return realHumanData;
         }
 
-        internal static  BArea InitBArea(float x, float y, float radiusX, float radiusY, float bumpBooster=1.0f)
+        internal static  BArea InitBArea(float x, float y, float radiusX, float radiusY, float bumpBooster=0.3f)
         {
             return new BArea
             {
@@ -840,8 +855,8 @@ namespace RealHumanSupport
         internal static RealHumanData InitRealHumanData(ChaControl charCtrl, RealHumanData realHumanData)
         {
 #if FEATURE_FIX_EXISTING
-            FixExistingFeatures(charCtrl);
-#endif            
+            SyncExistingFeatures(charCtrl);
+#endif
             {
                 realHumanData.charControl = charCtrl;
 
@@ -849,7 +864,7 @@ namespace RealHumanSupport
 
                 realHumanData = GetMaterials(charCtrl, realHumanData);
 
-                UnityEngine.Debug.Log($">> realHumanData.m_skin_body {realHumanData.m_skin_body}");
+                // UnityEngine.Debug.Log($">> realHumanData.m_skin_body {realHumanData.m_skin_body}");
 
                 if (realHumanData.m_skin_body != null && realHumanData.m_skin_body.GetTexture("_BumpMap2") != null)
                 {
@@ -881,7 +896,6 @@ namespace RealHumanSupport
                     return null;
                 else
                 {
-         
                     if (StudioAPI.InsideStudio) {
                         OCIChar ociChar = charCtrl.GetOCIChar();
 
@@ -967,7 +981,7 @@ namespace RealHumanSupport
         }
 
 #if FEATURE_FIX_EXISTING
-        internal static void FixExistingFeatures(ChaControl chaCtrl) {            
+        internal static void SyncExistingFeatures(ChaControl chaCtrl) {            
             string bone_prefix_str = "cf_";
             if (chaCtrl.sex == 0)
                 bone_prefix_str = "cm_";
@@ -980,8 +994,8 @@ namespace RealHumanSupport
 
                 foreach (DynamicBoneCollider dbc in dbcs)
                 {
-                    dbc.m_Radius    = 0.90f * RealHumanSupport.ExtraBoneScale.Value;
-                    dbc.m_Height    = 2.7f * RealHumanSupport.ExtraBoneScale.Value;
+                    dbc.m_Radius    = 1.30f * RealHumanSupport.ExtraBoneScale.Value;
+                    dbc.m_Height    = 2.65f * RealHumanSupport.ExtraBoneScale.Value;
                 }
             }
 
@@ -994,11 +1008,12 @@ namespace RealHumanSupport
                 foreach (DynamicBoneCollider dbc in dbcs)
                 {
                     dbc.m_Radius    = 1.0f * RealHumanSupport.ExtraBoneScale.Value;
-                    dbc.m_Height    = 3.8f * RealHumanSupport.ExtraBoneScale.Value;
+                    dbc.m_Height    = 3.6f * RealHumanSupport.ExtraBoneScale.Value;
                 }
             }
         }
-#endif   
+#endif
+
         internal static float Remap(float value, float inMin, float inMax, float outMin, float outMax)
         {
             return outMin + (value - inMin) * (outMax - outMin) / (inMax - inMin);
@@ -1021,6 +1036,7 @@ namespace RealHumanSupport
 
         }
 
+#if FEATURE_FACEBUMP_SUPPORT
         internal static void SupportFaceBumpEffect(ChaControl chaCtrl, RealHumanData realHumanData)
         {
             if (realHumanData.m_skin_head == null)
@@ -1101,6 +1117,7 @@ namespace RealHumanSupport
                 realHumanData.m_skin_head.SetTexture(realHumanData.head_bumpmap_name, realHumanData.headOriginTexture);
             }
         }
+#endif        
 
         internal static void SupportBodyBumpEffect(ChaControl chaCtrl, RealHumanData realHumanData)
         {
@@ -1108,11 +1125,12 @@ namespace RealHumanSupport
             if (realHumanData.m_skin_body == null)
                 return;
 
-            if (RealHumanSupport.BodyBlendingActive.Value)
+            if (RealHumanSupport.BodyBlendingActive.Value && StudioAPI.InsideStudio)
             {
                 OCIChar ociChar = chaCtrl.GetOCIChar();
 
                 List<BArea> areas = new List<BArea>();
+
                 PositionData lk_left_foot = GetBoneRotationFromIK(realHumanData.lk_left_foot_bone);
                 PositionData lk_right_foot = GetBoneRotationFromIK(realHumanData.lk_right_foot_bone);
                 
@@ -1146,7 +1164,7 @@ namespace RealHumanSupport
                     strong_texture = RealHumanSupport._self._bodyStrongMale_A_BumpMap2;
                 }
 
-                float left_shin_bs = 0.0f;
+                float left_shin = 0.0f;
                 float left_calf_bs = 0.0f;
                 float left_butt_bs = 0.0f;
                 float left_thigh_ft_bs = 0.0f;
@@ -1155,7 +1173,7 @@ namespace RealHumanSupport
                 float left_spine_bs = 0.0f;
                 float left_neck_bs = 0.0f;
 
-                float right_shin_bs = 0.0f;
+                float right_shin = 0.0f;
                 float right_calf_bs = 0.0f;            
                 float right_butt_bs = 0.0f;
                 float right_thigh_ft_bs = 0.0f;
@@ -1220,7 +1238,7 @@ namespace RealHumanSupport
                         
                         if (angle >= 110)  {
                             bumpscale = Math.Min(Remap(angle, 110.0f, 160.0f, 0.2f, 1.0f), 1.0f);
-                            left_shin_bs += bumpscale * 0.5f;
+                            left_shin += bumpscale * 0.5f;
                             left_thigh_inside_bs += bumpscale * 0.9f;
                             left_thigh_bk_bs += bumpscale * 0.5f;
                         }
@@ -1237,7 +1255,7 @@ namespace RealHumanSupport
 
                         if (angle >= 110)  {
                             bumpscale = Math.Min(Remap(angle, 110.0f, 160.0f, 0.2f, 1.0f), 1.0f);
-                            right_shin_bs += bumpscale * 0.5f;
+                            right_shin += bumpscale * 0.5f;
                             right_thigh_inside_bs += bumpscale * 0.9f;
                             right_thigh_bk_bs += bumpscale * 0.5f;
                         }
@@ -1246,24 +1264,24 @@ namespace RealHumanSupport
                     if (ociChar.oiCharInfo.enableIK) {          
                         if (lk_left_foot._front > 0.0f)
                         {   // 뒷방향
-                            bumpscale = Math.Min(Remap(lk_left_foot._front, 0.0f, 90.0f, 0.1f, 1f), 1f);
-                            left_shin_bs += bumpscale * 0.3f;
+                            bumpscale = Math.Min(Remap(lk_left_foot._front, 0.0f, 70.0f, 0.1f, 1f), 1f);
+                            left_shin += bumpscale * 0.3f;
                             left_thigh_ft_bs += bumpscale * 0.2f;
                             left_thigh_bk_bs += bumpscale * 0.2f;
                             left_thigh_inside_bs += bumpscale * 0.2f;
-                            left_calf_bs += bumpscale * 1.0f;
+                            left_calf_bs += bumpscale * 1.2f;
 
                             // TODO
                             // 발목 강조                        
                         }
                         if (lk_right_foot._front > 0.0f)
                         {   // 뒷방향         
-                            bumpscale = Math.Min(Remap(lk_right_foot._front, 0.0f, 90.0f, 0.1f, 1f), 1f);
-                            right_shin_bs += bumpscale * 0.3f;
+                            bumpscale = Math.Min(Remap(lk_right_foot._front, 0.0f, 7.0f, 0.1f, 1f), 1f);
+                            right_shin += bumpscale * 0.3f;
                             right_thigh_ft_bs += bumpscale * 0.2f;
                             right_thigh_bk_bs += bumpscale * 0.2f;
                             right_thigh_inside_bs += bumpscale * 0.2f;
-                            right_calf_bs += bumpscale * 1.0f;                                           
+                            right_calf_bs += bumpscale * 1.2f;                                           
                             // TODO
                             // 발목 강조
                         }
@@ -1273,11 +1291,11 @@ namespace RealHumanSupport
                         if (fk_left_foot._front > fk_left_knee._front)
                         {    
                             float angle = GetRelativePosition(fk_left_knee._front, fk_left_foot._front);
-                            bumpscale = Math.Min(Remap(angle, 0.0f, 90.0f, 0.1f, 1f), 1f);
-                            left_shin_bs += bumpscale * 0.3f;
+                            bumpscale = Math.Min(Remap(angle, 0.0f, 70.0f, 0.1f, 1f), 1f);
+                            left_shin += bumpscale * 0.3f;
                             left_thigh_ft_bs += bumpscale * 0.4f;
                             left_thigh_bk_bs += bumpscale * 0.2f;
-                            left_calf_bs += bumpscale * 1.0f;                           
+                            left_calf_bs += bumpscale * 1.2f;                           
                             // TODO
                             // 발목 강조                  
                         }
@@ -1285,11 +1303,11 @@ namespace RealHumanSupport
                         if (fk_right_foot._front > fk_right_knee._front)
                         {   // 뒷방향      
                             float angle = GetRelativePosition(fk_right_knee._front, fk_right_foot._front);
-                            bumpscale = Math.Min(Remap(angle, 0.0f, 90.0f, 0.1f, 1f), 1f);
-                            right_shin_bs += bumpscale * 0.3f;
+                            bumpscale = Math.Min(Remap(angle, 0.0f, 70.0f, 0.1f, 1f), 1f);
+                            right_shin += bumpscale * 0.3f;
                             right_thigh_ft_bs += bumpscale * 0.4f;
                             right_thigh_bk_bs += bumpscale * 0.2f;
-                            right_calf_bs += bumpscale * 1.0f;                 
+                            right_calf_bs += bumpscale * 1.2f;                 
                             // TODO
                             // 발목 강조
                         }
@@ -1382,9 +1400,9 @@ namespace RealHumanSupport
                 {
                     areas.Add(InitBArea(340, 970, 55, 120, Math.Min(left_thigh_inside_bs, 2.0f))); // 앞 허벅지 인쪽
                 }                 
-                if (left_shin_bs != 0.0f)
+                if (left_shin != 0.0f)
                 {
-                    areas.Add(InitBArea(400, 1450, 115, 300, Math.Min(left_shin_bs, 2.0f))); // 앞 정강이                                        
+                    areas.Add(InitBArea(400, 1450, 115, 300, Math.Min(left_shin, 2.0f))); // 앞 정강이                                        
                 }
                 if (left_thigh_bk_bs != 0.0f)
                 { 
@@ -1395,8 +1413,7 @@ namespace RealHumanSupport
                     areas.Add(InitBArea(650, 850, 85, 90, Math.Min(left_butt_bs, 2.0f))); // 뒷 엉덩이                                                
                 }        
                 if (left_calf_bs != 0.0f)
-                {
-                    areas.Add(InitBArea(650, 1230, 55, 80, Math.Min(right_calf_bs, 2.0f))); // 뒷 무릎 강조
+                {                    
                     areas.Add(InitBArea(670, 1420, 95, 140, Math.Min(left_calf_bs, 2.0f))); // 뒷 종아리 강조                                                     
                 }     
 
@@ -1417,9 +1434,9 @@ namespace RealHumanSupport
                 {
                     areas.Add(InitBArea(180, 970, 55, 120, Math.Min(right_thigh_inside_bs, 2.0f))); // 앞 허벅지 안쪽                          
                 } 
-                if (right_shin_bs != 0.0f)
+                if (right_shin != 0.0f)
                 {
-                    areas.Add(InitBArea(120, 1450, 115, 300, Math.Min(right_shin_bs, 1.2f))); // 앞 정강이                         
+                    areas.Add(InitBArea(120, 1450, 115, 300, Math.Min(right_shin, 1.2f))); // 앞 정강이                         
                 }
                 if (right_thigh_bk_bs != 0.0f)
                 {
@@ -1431,7 +1448,6 @@ namespace RealHumanSupport
                 }
                 if (right_calf_bs != 0.0f)
                 {
-                    areas.Add(InitBArea(920, 1230, 55, 80, Math.Min(right_calf_bs, 2.0f))); // 뒷 무릎 강조
                     areas.Add(InitBArea(890, 1420, 95, 140, Math.Min(right_calf_bs, 2.0f))); // 뒷 종아리 강조                                                         
                 }
 
@@ -1500,57 +1516,130 @@ namespace RealHumanSupport
             }
         }
 
-#if FEATURE_DYNAMIC_POSITION_CHANGE_SUPPORT
-        internal static void SupportIKOnScene(ChaControl chaCtrl, RealHumanData realHumanData) {
-            if (!StudioAPI.InsideStudio && !MakerAPI.insideMaker) {
+#if FEATURE_DYNAMIC_LONGHAIR
+        internal static void SyncLongHairCollider(ChaControl chaCtrl, RealHumanData realHumanData) {
 
+            if (realHumanData.head_bone != null)
+            {        
+                PositionData neckData = GetBoneRotationFromTF(realHumanData.neck_bone);
+                PositionData headData = GetBoneRotationFromTF(realHumanData.head_bone);
+
+                Vector3 worldGravity = Vector3.down * 0.02f;
+                Vector3 worldForce1 = Vector3.zero;          
+                Vector3 worldForce2 = Vector3.zero;   
+                Vector3 worldForce3 = Vector3.zero;   
+
+                float zOffset = 0f;
+                float yOffset = 0f;
+                if (neckData._front >= 0f)
+                {   
+                    // neck이 앞으로 숙인 유형                                                                        
+                    float angle = Math.Abs(neckData._front);                                
+                    yOffset = Remap(Math.Abs(angle), 0.0f, 140.0f, 0.01f, 0.02f);
+                    zOffset = yOffset;
+                    worldForce1 = new Vector3(0, -yOffset, zOffset);
+                } else
+                {
+                    // neck이 뒤로 숙인 유형                                                                        
+                    float angle = Math.Abs(neckData._front);                                
+                    yOffset = Remap(Math.Abs(angle), 0.0f, 140.0f, 0.005f, 0.07f);
+                    zOffset = yOffset;
+                    worldForce1 = new Vector3(0, -yOffset, -zOffset);                                    
+                }
+
+                if (neckData._front < headData._front)
+                {
+                    // head가 앞으로 숙인 유형                                                                        
+                    float angle = GetRelativePosition(neckData._front, headData._front);                           
+                    yOffset = Remap(Math.Abs(angle), 0.0f, 120.0f, 0.01f, 0.03f);
+                    zOffset = yOffset;
+                    worldForce2 = new Vector3(0, -yOffset, zOffset);
+                } else
+                {
+                    // head가 뒤로 숙인 유형   
+                    float angle = GetRelativePosition(neckData._front, headData._front);
+                    yOffset = Remap(Math.Abs(angle), 0.0f, 120.0f, 0.005f, 0.035f);
+                    zOffset = yOffset;
+                    worldForce2 = new Vector3(0, -yOffset, -zOffset);                  
+                }
+
+                worldForce3 = worldForce1 + worldForce2;
+                
+                // hair 에 대해 world position 적용
+                foreach (DynamicBone hairDynamicBone in realHumanData.hairDynamicBones)
+                {
+                    if (hairDynamicBone == null)
+                        continue;
+
+                    // DynamicBone 기준 로컬 변환
+                    hairDynamicBone.m_Gravity =
+                        realHumanData.root_bone.InverseTransformDirection(worldGravity);
+
+                    hairDynamicBone.m_Force =
+                        realHumanData.root_bone.InverseTransformDirection(worldForce3);
+                }                         
+            }              
+        }         
+#endif
+
+#if FEATURE_IK_INGAME
+        internal static void SupportIKOnScene(ChaControl chaCtrl, RealHumanData realHumanData) {
+            if (!StudioAPI.InsideStudio && !MakerAPI.InsideMaker) {
+
+                string bone_prefix_str = "cf_";
+                if(chaCtrl.sex == 0)
+                    bone_prefix_str = "cm_";
+                    
                 realHumanData.head_ik_data = new HeadIKData();
                 realHumanData.l_leg_ik_data = new LegIKData();
                 realHumanData.r_leg_ik_data = new LegIKData();
 
-                Transform[] headbones = chaControl.objBody.GetComponentsInChildren<Transform>();
+                Transform[] bones = realHumanData.charControl.objAnim.transform.GetComponentsInChildren<Transform>();
+  
+                // UnityEngine.Debug.Log($">> SupportIKOnScene {headbones.Length}");
 
-                foreach (Transform bone in headbones) {
-                    if (bone.gameObject.name.Contains("_J_Head"))
+                foreach (Transform bone in bones) {
+    
+                    if (bone.name.Equals(bone_prefix_str+"J_Head"))
                     {
-                        head_ik_data.head = bone;
-                        head_ik_data.baseHeadRotation = bone.localRotation;
+                        realHumanData.head_ik_data.head = bone;
+                        realHumanData.head_ik_data.baseHeadRotation = bone.localRotation;
                     }
-                    else if (bone.gameObject.name.Contains("_J_Neck")) {
-                        head_ik_data.neck = bone;
-                        head_ik_data.baseNeckRotation = bone.localRotation;
+                    else if (bone.name.Equals(bone_prefix_str + "J_Neck")) {
+                        realHumanData.head_ik_data.neck = bone;
+                        realHumanData.head_ik_data.baseNeckRotation = bone.localRotation;
+                        realHumanData.head_ik_data.proxyCollider = CreateHitProxy(realHumanData.head_ik_data.neck, "Neck");
                     }
                 }
 
+                //Transform[] bodybones = realHumanData.charControl.objHead.GetComponentsInChildren<Transform>();
 
-                Transform[] bodybones = chaControl.objHead.GetComponentsInChildren<Transform>();
-
-                foreach (Transform bone in bodybones) {
-                    if (bone.gameObject.name.Contains("_J_Foot01_L"))
-                    {
-                        l_leg_ik_data.foot = bone;
-                    }   
-                    else if (bone.gameObject.name.Contains("_J_Foot01_R"))
-                    {
-                        r_leg_ik_data.foot = bone;
-                    } 
-                    else if (bone.gameObject.name.Contains("_J_LegLow01_L"))
-                    {
-                        l_leg_ik_data.knee = bone;
-                    }
-                    else if (bone.gameObject.name.Contains("_J_LegLow01_R"))
-                    {
-                        r_leg_ik_data.knee = bone;
-                    } 
-                    else if (bone.gameObject.name.Contains("_J_LegUp00_L"))
-                    {
-                        l_leg_ik_data.thigh = bone;
-                    }
-                    else if (bone.gameObject.name.Contains("_J_LegUp00_R"))
-                    {
-                        r_leg_ik_data.thigh = bone;
-                    }                    
-                }
+                //foreach (Transform bone in bodybones) {
+                //    if (bone.gameObject.name.Contains("_J_Foot01_L"))
+                //    {
+                //        l_leg_ik_data.foot = bone;
+                //    }   
+                //    else if (bone.gameObject.name.Contains("_J_Foot01_R"))
+                //    {
+                //        r_leg_ik_data.foot = bone;
+                //    } 
+                //    else if (bone.gameObject.name.Contains("_J_LegLow01_L"))
+                //    {
+                //        l_leg_ik_data.knee = bone;
+                //    }
+                //    else if (bone.gameObject.name.Contains("_J_LegLow01_R"))
+                //    {
+                //        r_leg_ik_data.knee = bone;
+                //    } 
+                //    else if (bone.gameObject.name.Contains("_J_LegUp00_L"))
+                //    {
+                //        l_leg_ik_data.thigh = bone;
+                //    }
+                //    else if (bone.gameObject.name.Contains("_J_LegUp00_R"))
+                //    {
+                //        r_leg_ik_data.thigh = bone;
+                //    }                    
+                //}
             }
         }
 
@@ -1619,17 +1708,17 @@ namespace RealHumanSupport
         // ==========================
         // Head / Neck rotation only
         // ==========================
-        internal static void RotateHead(Vector2 mouseDelta)
-        {
-            float yaw   = mouseDelta.x * 0.15f;
-            float pitch = -mouseDelta.y * 0.15f;
+        //internal static void RotateHead(Vector2 mouseDelta)
+        //{
+        //    float yaw   = mouseDelta.x * 0.15f;
+        //    float pitch = -mouseDelta.y * 0.15f;
 
-            Vector3 euler = head.localEulerAngles;
-            euler.x = ClampAngle(euler.x + pitch, -40f, 40f);
-            euler.y = ClampAngle(euler.y + yaw, -60f, 60f);
+        //    Vector3 euler = head.localEulerAngles;
+        //    euler.x = ClampAngle(euler.x + pitch, -40f, 40f);
+        //    euler.y = ClampAngle(euler.y + yaw, -60f, 60f);
 
-            head.localEulerAngles = euler;
-        }
+        //    head.localEulerAngles = euler;
+        //}
 
         internal static float ClampAngle(float angle, float min, float max)
         {
@@ -1637,12 +1726,12 @@ namespace RealHumanSupport
             return Mathf.Clamp(angle, min, max);
         }
 
-        internal static GameObject CreateHitProxy(Transform neck, string name, float radius = 0.06f)
+        internal static GameObject CreateHitProxy(Transform neck, string name, float radius = 0.6f)
         {
             GameObject go = new GameObject($"{name}_HitProxy");
 
             go.transform.SetParent(neck, false);
-            go.transform.localPosition = Vector3.zero;
+            go.transform.localPosition = new Vector3(0.0f, 0.3f, 0.0f);
             go.transform.localRotation = Quaternion.identity;
 
             SphereCollider col = go.AddComponent<SphereCollider>();
@@ -1650,49 +1739,128 @@ namespace RealHumanSupport
             col.isTrigger = true;
 
             return go;
+            // === Hit Proxy Debug ===
+            // GameObject go = new GameObject($"{name}_HitProxy");
+            // go.transform.SetParent(neck, false);
+            // go.transform.localPosition = new Vector3(0.0f, 0.3f, 0.0f);
+            // go.transform.localRotation = Quaternion.identity;
+            // go.layer = LayerMask.NameToLayer("Ignore Raycast"); // 선택 사항
+
+            // // === Collider ===
+            // SphereCollider col = go.AddComponent<SphereCollider>();
+            // col.radius = radius;
+            // col.isTrigger = true;
+
+            // // === Visual Sphere ===
+            // GameObject visual = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            // visual.name = "Visual";
+            // visual.transform.SetParent(go.transform, false);
+            // visual.transform.localPosition = Vector3.zero;
+            // visual.transform.localRotation = Quaternion.identity;
+
+            // // Sphere는 지름 기준이므로 * 2
+            // visual.transform.localScale = Vector3.one * radius * 2f;
+
+            // // 시각용이므로 Collider 제거
+            // UnityEngine.Object.Destroy(visual.GetComponent<Collider>());
+
+            // // === Material (녹색 반투명) ===
+            // Material mat = new Material(Shader.Find("Unlit/Color"));
+            // mat.color = new Color(0f, 1f, 0f, 0.25f); // RGBA
+            // visual.GetComponent<MeshRenderer>().material = mat;
+
+            // return go;            
         }
 
-        internal static void UpdateIKHead(HeadIKData headIKData, float mouseX, float mouseY) {
+        internal static void UpdateIKHead(RealHumanData realHumanData, float mouseX, float mouseY) {
             // float yaw   = Input.GetAxis("Mouse X") * 2.0f;
             // float pitch = -Input.GetAxis("Mouse Y") * 2.0f;
 
-            headIKData.inputEuler.x += mouseX * 2f; // yaw
-            headIKData.inputEuler.y += mouseY * 2f; // pitch
+            realHumanData.head_ik_data.inputEuler.x += -mouseX * 2f; // yaw
+            realHumanData.head_ik_data.inputEuler.y += mouseY * 2f; // pitch
 
             // Clamp (중요)
-            headIKData.inputEuler.x = Mathf.Clamp(headIKData.inputEuler.x, -60f, 60f);
-            headIKData.inputEuler.y = Mathf.Clamp(headIKData.inputEuler.y, -40f, 40f);            
+            realHumanData.head_ik_data.inputEuler.x = Mathf.Clamp(realHumanData.head_ik_data.inputEuler.x, -60f, 60f);
+            realHumanData.head_ik_data.inputEuler.y = Mathf.Clamp(realHumanData.head_ik_data.inputEuler.y, -40f, 40f);            
+        }
+
+        internal static void ReflectIKToCamera(
+            RealHumanData realHumanData,
+            Camera cam)
+        {
+            if (realHumanData.head_ik_data.weight <= 0f)
+                return;
+
+            Transform neck = realHumanData.head_ik_data.neck;
+            Transform head = realHumanData.head_ik_data.head;
+
+            // 기준 forward (카메라 정면)
+            Vector3 targetForward = cam.transform.forward;
+
+            // 월드 → 로컬 변환
+            Vector3 neckLocalForward =
+                neck.parent.InverseTransformDirection(targetForward);
+
+            Vector3 headLocalForward =
+                head.parent.InverseTransformDirection(targetForward);
+
+            Quaternion neckTarget =
+                Quaternion.LookRotation(neckLocalForward, Vector3.up);
+
+            Quaternion headTarget =
+                Quaternion.LookRotation(headLocalForward, Vector3.up);
+
+            // base 회전 기준으로 보정
+            Quaternion neckOffset =
+                Quaternion.Inverse(realHumanData.head_ik_data.baseNeckRotation) * neckTarget;
+
+            Quaternion headOffset =
+                Quaternion.Inverse(realHumanData.head_ik_data.baseHeadRotation) * headTarget;
+
+            neck.localRotation =
+                Quaternion.Slerp(
+                    realHumanData.head_ik_data.baseNeckRotation,
+                    realHumanData.head_ik_data.baseNeckRotation * neckOffset,
+                    realHumanData.head_ik_data.weight * 0.4f
+                );
+
+            head.localRotation =
+                Quaternion.Slerp(
+                    realHumanData.head_ik_data.baseHeadRotation,
+                    realHumanData.head_ik_data.baseHeadRotation * headOffset,
+                    realHumanData.head_ik_data.weight * 0.6f
+                );
         }
 
         internal static void ReflectIKToAnimation(RealHumanData realHumanData) {
-            if (realHumanData.headIKData.weight <= 0f)
+            if (realHumanData.head_ik_data.weight <= 0f)
                 return;
 
             // 목표 회전
             Quaternion neckOffset = Quaternion.Euler(
-                realHumanData.headIKData.inputEuler.y * 0.4f,
-                realHumanData.headIKData.inputEuler.x * 0.4f,
+                realHumanData.head_ik_data.inputEuler.y * 0.4f,
+                realHumanData.head_ik_data.inputEuler.x * 0.4f,
                 0f
             );
 
             Quaternion headOffset = Quaternion.Euler(
-                realHumanData.headIKData.inputEuler.y * 0.6f,
-                realHumanData.headIKData.inputEuler.x * 0.6f,
+                realHumanData.head_ik_data.inputEuler.y * 0.6f,
+                realHumanData.head_ik_data.inputEuler.x * 0.6f,
                 0f
             );
 
-            realHumanData.headIKData.neck.localRotation =
+            realHumanData.head_ik_data.neck.localRotation =
                 Quaternion.Slerp(
-                    realHumanData.headIKData.baseNeckRotation,
-                    realHumanData.headIKData.baseNeckRotation * neckOffset,
-                    realHumanData.headIKData.weight
+                    realHumanData.head_ik_data.baseNeckRotation,
+                    realHumanData.head_ik_data.baseNeckRotation * neckOffset,
+                    realHumanData.head_ik_data.weight
                 );
 
-            realHumanData.headIKData.head.localRotation =
+            realHumanData.head_ik_data.head.localRotation =
                 Quaternion.Slerp(
-                    realHumanData.headIKData.baseHeadRotation,
-                    realHumanData.headIKData.baseHeadRotation * headOffset,
-                    realHumanData.headIKData.weight
+                    realHumanData.head_ik_data.baseHeadRotation,
+                    realHumanData.head_ik_data.baseHeadRotation * headOffset,
+                    realHumanData.head_ik_data.weight
                 );
         }
 #endif                
@@ -1724,7 +1892,7 @@ namespace RealHumanSupport
         {
             if (tex == null)
             {
-                Debug.LogError("Texture is null");
+                UnityEngine.Debug.LogError("Texture is null");
                 return;
             }
 
@@ -1740,7 +1908,7 @@ namespace RealHumanSupport
             }
             else
             {
-                Debug.LogError($"Unsupported texture type: {tex.GetType()}");
+                UnityEngine.Debug.LogError($"Unsupported texture type: {tex.GetType()}");
                 return;
             }
 
@@ -1748,27 +1916,6 @@ namespace RealHumanSupport
             File.WriteAllBytes(path, bytes);
         }
 
-
-
-        // internal static void SaveAsPNG(Texture2D tex, string path)
-        // {
-        //     if (tex == null)
-        //     {
-        //         UnityEngine.Debug.LogError("Texture is null, cannot save.");
-        //         return;
-        //     }
-
-        //     byte[] bytes = tex.EncodeToPNG();
-        //     try
-        //     {
-        //         File.WriteAllBytes(path, bytes);
-        //         UnityEngine.Debug.Log($"Texture saved to: {path}");
-        //     }
-        //     catch (System.Exception e)
-        //     {
-        //         UnityEngine.Debug.LogError($"Failed to save texture: {e}");
-        //     }
-        // }
 
         internal static Texture2D MakeWritableTexture(Texture texture)
         {
@@ -1927,11 +2074,22 @@ namespace RealHumanSupport
             this.areas.Add(barea3);
             this.areas.Add(barea4);
         }
+
         public void Add(BArea area)
         {
             this.areas.Add(area);
         }
     }
+
+    struct BArea
+    {
+        public float X { get; set; }
+        public float Y { get; set; }
+        public float RadiusX; // 가로 반지름
+        public float RadiusY; // 세로 반지름
+        public float Strong; // G/B 방향 강조
+        public float BumpBooster; // 범프 세기 강조
+    }    
     
     class PositionData
     {
@@ -2033,6 +2191,9 @@ namespace RealHumanSupport
 
         public Transform root_bone;
 
+        public Transform l_eye_s;
+        public Transform r_eye_s;
+
         public List<DynamicBone> hairDynamicBones = new List<DynamicBone>();
 
         // public BODY_SHADER bodyShaderType = BODY_SHADER.DEFAULT;
@@ -2059,7 +2220,7 @@ namespace RealHumanSupport
         // public Transform ik_target_l_knee;
         // public Transform ik_target_r_knee;
         // public float ik_weight;
-#if FEATURE_DYNAMIC_POSITION_CHANGE_SUPPORT
+#if FEATURE_IK_INGAME
         public LegIKData l_leg_ik_data;
         public LegIKData r_leg_ik_data;
         public HeadIKData head_ik_data;
@@ -2068,7 +2229,7 @@ namespace RealHumanSupport
         {
         }        
     }
-#if FEATURE_DYNAMIC_POSITION_CHANGE_SUPPORT
+#if FEATURE_IK_INGAME
     public class  LegIKData {
         public Transform thigh;
         public Transform knee;
@@ -2076,12 +2237,17 @@ namespace RealHumanSupport
 
         public Transform target;
         public Transform pole;
+
+        public GameObject proxyCollider;
+
         public float weight;
     }
 
     public class  HeadIKData {
         public Transform neck;
         public Transform head;
+
+        public GameObject proxyCollider;
                 
         public Quaternion baseNeckRotation;
         public Quaternion baseHeadRotation;
@@ -2092,21 +2258,12 @@ namespace RealHumanSupport
 
         public HeadIKData()
         {
-            this.inputEuler = new Vector2.zero;
+            this.inputEuler = Vector2.zero;
             this.weight = 1f;
         }       
     }
 
 #endif
-    struct BArea
-    {
-        public float X { get; set; }
-        public float Y { get; set; }
-        public float RadiusX; // 가로 반지름
-        public float RadiusY; // 세로 반지름
-        public float Strong; // G/B 방향 강조
-        public float BumpBooster; // 범프 세기 강조
-    }
 
 #if FEATURE_STRAPON_SUPPORT  
     public class CapsuleTrigger : MonoBehaviour
