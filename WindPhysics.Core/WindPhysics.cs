@@ -48,7 +48,7 @@ namespace WindPhysics
     {
         #region Constants
         public const string Name = "WindPhysics";
-        public const string Version = "0.9.4.2";
+        public const string Version = "0.9.4.3";
         public const string GUID = "com.alton.illusionplugins.wind";
         internal const string _ownerId = "alton";
 #if KOIKATSU || AISHOUJO || HONEYSELECT2
@@ -73,10 +73,6 @@ namespace WindPhysics
 
         internal static Dictionary<string, string> boneDict = new Dictionary<string, string>();
 
-        internal static ConfigEntry<bool> ConfigKeyEnableWind { get; private set; }
-        internal static ConfigEntry<KeyboardShortcut> ConfigKeyEnableWindShortcut { get; private set; }
-
-
         private static string _assemblyLocation;
         private bool _loaded = false;
 
@@ -92,9 +88,14 @@ namespace WindPhysics
 
         internal Dictionary<int, WindData> _ociObjectMgmt = new Dictionary<int, WindData>();
 
-        private Coroutine _CheckWindActiveRoutine;
+        private Coroutine _CheckWindMgmtRoutine;    
 
-        // Environment    
+        #endregion
+
+        #region Accessors
+        internal static ConfigEntry<bool> ConfigKeyEnableWind { get; private set; }
+        internal static ConfigEntry<KeyboardShortcut> ConfigKeyEnableWindShortcut { get; private set; }
+
         internal static ConfigEntry<float> WindDirection { get; private set; }
         internal static ConfigEntry<float> WindInterval { get; private set; }
         internal static ConfigEntry<float> WindUpForce { get; private set; }
@@ -113,12 +114,8 @@ namespace WindPhysics
         internal static ConfigEntry<float> ClotheForce { get; private set; }
         internal static ConfigEntry<float> ClotheAmplitude { get; private set; }
         internal static ConfigEntry<float> ClothDamping { get; private set; }
-        internal static ConfigEntry<float> ClothStiffness { get; private set; }        
-
-        #endregion
-
-        #region Accessors
-        internal static ConfigEntry<KeyboardShortcut> ConfigMainWindowShortcut { get; private set; }
+        internal static ConfigEntry<float> ClothStiffness { get; private set; }    
+        // internal static ConfigEntry<KeyboardShortcut> ConfigMainWindowShortcut { get; private set; }
         #endregion
 
 
@@ -208,14 +205,11 @@ namespace WindPhysics
         #region Private Methods
         private void Init()
         {
-            // UIUtility.Init();
             _loaded = true;
-
-
-            _CheckWindActiveRoutine = StartCoroutine(CheckWindActiveRoutine());
+            _CheckWindMgmtRoutine = StartCoroutine(CheckWindMgmtRoutine());
         }
 
-        private void SceneInit()
+        private void MgmtInit()
         {
             foreach (var kvp in _ociObjectMgmt)
             {
@@ -251,12 +245,15 @@ namespace WindPhysics
         }
 
         // n 개 대상 아이템에 대해 active/inactive 동시 적용 처리 
-        IEnumerator CheckWindActiveRoutine()
+        IEnumerator CheckWindMgmtRoutine()
         {
             while (true)
             {
                 if(_previousConfigKeyEnableWind != ConfigKeyEnableWind.Value)
                 {
+
+                    UnityEngine.Debug.Log($">> CheckWindMgmtRoutine {_selectedOCIs.Count}");
+
                     foreach (ObjectCtrlInfo ctrlInfo in _selectedOCIs)
                     {
                         OCIChar ociChar = ctrlInfo as OCIChar;
@@ -266,7 +263,9 @@ namespace WindPhysics
                             {
                                 OCIChar ociChar1 = windData.objectCtrlInfo as OCIChar;
 
-                                if (windData.wind_status == Status.DESTROY)
+                                UnityEngine.Debug.Log($">> windData {windData.wind_status}");
+
+                                if (windData.wind_status == Status.DESTROY || windData.wind_status == Status.IDLE)
                                 {
                                     if (windData.coroutine != null)
                                     {                                       
@@ -277,7 +276,8 @@ namespace WindPhysics
                                     windData.wind_status = Status.RUN;
                                     windData.coroutine = ociChar1.charInfo.StartCoroutine(WindRoutine(windData));
                                 }
-                            } else
+                            } 
+                            else
                             {
                                 windData.wind_status = Status.DESTROY;
                             }                            
@@ -537,10 +537,20 @@ namespace WindPhysics
 
                         // 적용
                         ApplyWind(windEffect, 1.0f, windData);
-                        yield return new WaitForSeconds(0.3f);
+                        // if (WindInterval.Value > 0.1f) {
+                        yield return new WaitForSeconds(0.2f);
 
                         // 자연스럽게 사라짐
-                        float fadeTime = Mathf.Lerp(0.8f, 1.8f, WindForce.Value);
+                        float minDelayFadeTime = 0.2f;
+                        float maxDelayFadeTime = 1.5f;
+                        
+                        if (WindInterval.Value <= 1.0f)
+                        {
+                            minDelayFadeTime  = 0.1f;
+                            maxDelayFadeTime  = 0.3f;
+                        }
+
+                        float fadeTime = Mathf.Lerp(WindInterval.Value - minDelayFadeTime, WindInterval.Value + maxDelayFadeTime, WindForce.Value);
                         float t = 0f;
                         while (t < fadeTime)
                         {
@@ -551,8 +561,8 @@ namespace WindPhysics
                         }
 
                         // 다음 바람 전 잠깐 멈춤
-                        if (WindInterval.Value > 0.1f)
-                            yield return new WaitForSeconds(WindInterval.Value);
+                        // if (WindInterval.Value > 0.1f)
+                        //     yield return new WaitForSeconds(WindInterval.Value);
 
                     }
                     else if (windData.wind_status == Status.STOP || windData.wind_status == Status.DESTROY)
@@ -583,6 +593,8 @@ namespace WindPhysics
         {
             private static bool Prefix(object __instance, TreeNodeObject _node)
             {
+                _self.MgmtInit();
+
                 ObjectCtrlInfo ctrlInfo = Studio.Studio.GetCtrlInfo(_node);
 
                 List<ObjectCtrlInfo> objCtrlInfos = new List<ObjectCtrlInfo>(); 
@@ -599,6 +611,8 @@ namespace WindPhysics
         {
             private static bool Prefix(object __instance)
             {
+                _self.MgmtInit();
+
                 List<ObjectCtrlInfo> objCtrlInfos = new List<ObjectCtrlInfo>(); 
                 foreach (TreeNodeObject node in Singleton<Studio.Studio>.Instance.treeNodeCtrl.selectNodes)
                 {
@@ -778,7 +792,7 @@ namespace WindPhysics
             private static bool Prefix(object __instance, bool _close)
             {
                 // UnityEngine.Debug.Log($">> InitScene");
-                _self.SceneInit();
+                _self.MgmtInit();
                 return true;
             }
         }

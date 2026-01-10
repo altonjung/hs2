@@ -76,7 +76,7 @@ namespace WindPhysics
         {
             windData.wind_status = WindPhysics.ConfigKeyEnableWind.Value ? Status.RUN : Status.DESTROY;
 
-            if (windData.wind_status == Status.RUN && windData.objectCtrlInfo != null)
+            if (windData.objectCtrlInfo != null)
             {
                 OCIChar ociChar = windData.objectCtrlInfo as OCIChar;
                 OCIItem ociItem = windData.objectCtrlInfo as OCIItem;

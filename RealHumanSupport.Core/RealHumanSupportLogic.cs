@@ -274,41 +274,71 @@ namespace RealHumanSupport
             string bone_prefix_str = "cf_";
             if(chaCtrl.sex == 0)
                 bone_prefix_str = "cm_";
-
-            realHumanData.l_eye_s  = chaCtrl.objAnim.transform.FindLoop(bone_prefix_str+"J_Eye02_s_L");
-            realHumanData.r_eye_s  = chaCtrl.objAnim.transform.FindLoop(bone_prefix_str+"J_Eye02_s_R");      
+    
+            realHumanData.nose_bridge_s = chaCtrl.objAnim.transform.FindLoop(bone_prefix_str+"J_NoseBridge_s"); 
+            realHumanData.mouse_l = chaCtrl.objAnim.transform.FindLoop(bone_prefix_str+"J_Mouth_L"); 
         }        
         
-        internal static DynamicBone[] SetHairDown(ChaControl chaCtrl, RealHumanData realHumanData) {
+        internal static void SetHairDown(ChaControl chaCtrl, RealHumanData realHumanData) {
             string bone_prefix_str = "cf_";
             if(chaCtrl.sex == 0)
                 bone_prefix_str = "cm_";
-            
-            realHumanData.root_bone = chaCtrl.objAnim.transform.FindLoop(bone_prefix_str+"J_Root");
-            realHumanData.head_bone = chaCtrl.objAnim.transform.FindLoop(bone_prefix_str+"J_Head");
-            realHumanData.neck_bone = chaCtrl.objAnim.transform.FindLoop(bone_prefix_str+"J_Neck");            
 
-            DynamicBone[] hairbones = realHumanData.head_bone.GetComponentsInChildren<DynamicBone>(true);  
-
-            // 월드 기준 방향
-            Vector3 worldGravity = Vector3.down * 0.02f;
-            Vector3 worldForce = new Vector3(0, -0.03f, -0.01f);
-                        
-            foreach (DynamicBone bone in hairbones)
+            if (realHumanData.root_bone != null)
             {
-                if (bone == null)
-                    continue;
+                foreach (DynamicBone bone in realHumanData.hairDynamicBones)
+                {
+                    if (bone == null)
+                        continue;
 
-                bone.m_Gravity = realHumanData.head_bone.transform.InverseTransformDirection(worldGravity);
-                bone.m_Force =  realHumanData.head_bone.transform.InverseTransformDirection(worldForce);
-                bone.m_Damping = 0.13f;
-                bone.m_Elasticity = 0.05f;
-                bone.m_Stiffness = 0.13f;
+                    Transform hairTip;
+                    if (!realHumanData.hairTipCache.TryGetValue(bone, out hairTip))
+                        continue;
+
+                    Vector3 dirToRoot =
+                        (realHumanData.root_bone.position - hairTip.position).normalized;
+
+                    bone.m_Gravity = dirToRoot * 0.015f; // 디버그용
+                    bone.m_Force = Vector3.zero;
+
+                    bone.m_Damping    = 0.13f;
+                    bone.m_Elasticity = 0.05f;
+                    bone.m_Stiffness  = 0.13f;
+                }
             }
+            // if (realHumanData.root_bone != null)
+            // foreach (DynamicBone bone in realHumanData.hairDynamicBones)
+            // {
+            //     if (bone == null)
+            //         continue;
 
-            realHumanData.hairDynamicBones = hairbones.ToList();
+            //     Transform hairTip;
+            //     if (!realHumanData.hairTipCache.TryGetValue(bone, out hairTip))
+            //         continue;
 
-            return hairbones;
+            //     // --- 1. 월드 기준: hair tip → 캐릭터 중심
+            //     Vector3 dirWorld =
+            //         (realHumanData.root_bone.position - hairTip.position).normalized;
+
+            //     // --- 2. DynamicBone은 로컬 force만 먹음
+            //     Vector3 dirLocal =
+            //         bone.transform.InverseTransformDirection(dirWorld);
+
+            //     // --- 3. Gravity는 "늘어짐 유지" 전용 (고정)
+            //     bone.m_Gravity = Vector3.down * 0.003f;
+
+            //     // --- 4. Force는 보간으로 누적 (이게 핵심)
+            //     bone.m_Force = Vector3.Lerp(
+            //         bone.m_Force,
+            //         dirLocal * 0.02f,
+            //         0.15f
+            //     );
+
+            //     // --- 5. 안정 파라미터
+            //     bone.m_Damping    = 0.25f;
+            //     bone.m_Elasticity = 0.04f;
+            //     bone.m_Stiffness  = 0.12f;
+            // }
         }
 
 #if FEATURE_STRAPON_SUPPORT        
@@ -449,7 +479,7 @@ namespace RealHumanSupport
 
                 
                 SetTearDrops(chaCtrl, realHumanData);
-                DynamicBone[] hairbones = SetHairDown(chaCtrl, realHumanData);     
+                SetHairDown(chaCtrl, realHumanData);     
 
                 // hair dynamic bone 연결 대상 finger collider 생성
                 List<DynamicBoneCollider> extraHairColliders = new List<DynamicBoneCollider>();       
@@ -481,29 +511,28 @@ namespace RealHumanSupport
                 // List<DynamicBoneCollider> extraFingerColliders = new List<DynamicBoneCollider>();
 
                 extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerThumb2LObject, DynamicBoneColliderBase.Direction.X, 0.07f, 0, new Vector3(0f, 0f, 0f)));
-                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerThumb3LObject, DynamicBoneColliderBase.Direction.X, 0.07f, 0, new Vector3(0f, 0f, 0f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerThumb3LObject, DynamicBoneColliderBase.Direction.X, 0.07f, 0.24f, new Vector3(0f, 0f, 0f)));
 
                 extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerIdx2LObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
-                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerIdx3LObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerIdx3LObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0.24f, new Vector3(0f, 0f, 0f)));
 
                 extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerMiddle2LObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
-                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerMiddle3LObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerMiddle3LObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0.24f, new Vector3(0f, 0f, 0f)));
           
                 extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerRing2LObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
-                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerRing3LObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
-
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerRing3LObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0.24f, new Vector3(0f, 0f, 0f)));
 
                 extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerThumb2RObject, DynamicBoneColliderBase.Direction.X, 0.07f, 0, new Vector3(0f, 0f, 0f)));
-                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerThumb3RObject, DynamicBoneColliderBase.Direction.X, 0.07f, 0, new Vector3(0f, 0f, 0f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerThumb3RObject, DynamicBoneColliderBase.Direction.X, 0.07f, 0.24f, new Vector3(0f, 0f, 0f)));
 
                 extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerIdx2RObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
-                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerIdx3RObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerIdx3RObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0.24f, new Vector3(0f, 0f, 0f)));
 
                 extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerMiddle2RObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
-                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerMiddle3RObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerMiddle3RObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0.24f, new Vector3(0f, 0f, 0f)));
          
                 extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerRing2RObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
-                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerRing3RObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0, new Vector3(0f, 0f, 0f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(fingerRing3RObject, DynamicBoneColliderBase.Direction.X, 0.06f, 0.24f, new Vector3(0f, 0f, 0f)));
 
                 // foreach (var bone in hairbones)
                 // {
@@ -534,31 +563,31 @@ namespace RealHumanSupport
                 Transform spine2Object = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Spine02");
                 Transform spine3Object = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Spine03");
                 
-                float spine2_radius = 1.0f;
-                float spine3_radius = 1.15f;
+                float spine2_radius = 0.9f;
+                float spine3_radius = 0.875f;
 
                 spine2_radius = spine2_radius * RealHumanSupport.ExtraColliderScale.Value;
                 spine3_radius = spine3_radius * RealHumanSupport.ExtraColliderScale.Value;
 
-                extraHairColliders.Add(AddExtraDynamicBoneCollider(spine2Object, DynamicBoneColliderBase.Direction.Y, spine2_radius, spine2_radius * 3.0f, Vector3.zero));
-                extraHairColliders.Add(AddExtraDynamicBoneCollider(spine3Object, DynamicBoneColliderBase.Direction.X, spine3_radius, spine3_radius * 2.3f, new Vector3(0.0f, -0.03f, 0.15f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(spine2Object, DynamicBoneColliderBase.Direction.Y, spine2_radius, spine2_radius * 3.0f, new Vector3(0.0f, 0.0f, 0.04f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(spine3Object, DynamicBoneColliderBase.Direction.X, spine3_radius, spine3_radius * 3.4f, Vector3.zero));
 
                 // hair dynamic bone 연결 대상 nipple collider 생성  
                 Transform leftNippleObject = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Mune02_L");
                 Transform rightNippleObject = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Mune02_R");
 
-                extraHairColliders.Add(AddExtraDynamicBoneCollider(leftNippleObject, DynamicBoneColliderBase.Direction.X, 0.35f, 0.35f, new Vector3(0.0f, 0.0f, 0.13f)));
-                extraHairColliders.Add(AddExtraDynamicBoneCollider(rightNippleObject, DynamicBoneColliderBase.Direction.X, 0.35f, 0.35f, new Vector3(0.0f, 0.0f, 0.13f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(leftNippleObject, DynamicBoneColliderBase.Direction.X, 0.385f, 0.385f, new Vector3(0.0f, 0.02f, 0.02f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(rightNippleObject, DynamicBoneColliderBase.Direction.X, 0.385f, 0.385f, new Vector3(0.0f, 0.02f, 0.02f)));
 
                 // hair dynamic bone 연결 대상 골반 collider 생성
                 Transform kosi2Object = chaCtrl.objBodyBone.transform.FindLoop(bone_prefix_str+"J_Kosi02");
-                float kosi2_radius = 1.15f;
+                float kosi2_radius = 1.17f;
                 
                 kosi2_radius = kosi2_radius * RealHumanSupport.ExtraColliderScale.Value;
 
-                extraHairColliders.Add(AddExtraDynamicBoneCollider(kosi2Object, DynamicBoneColliderBase.Direction.X, kosi2_radius, kosi2_radius * 3.0f, new Vector3(0.0f, 0.0f, -0.05f)));
+                extraHairColliders.Add(AddExtraDynamicBoneCollider(kosi2Object, DynamicBoneColliderBase.Direction.X, kosi2_radius, kosi2_radius * 2.8f, new Vector3(0.0f, -0.05f, -0.05f)));
 
-                foreach (var bone in hairbones)
+                foreach (var bone in realHumanData.hairDynamicBones)
                 {
                     if (bone == null)
                         continue;
@@ -852,17 +881,34 @@ namespace RealHumanSupport
             };
         }
 
-        internal static RealHumanData InitRealHumanData(ChaControl charCtrl, RealHumanData realHumanData)
+        internal static Transform FindHairTip(Transform hairRoot)
+        {
+            Transform tip = hairRoot;
+            float maxDist = 0f;
+
+            foreach (Transform t in hairRoot.GetComponentsInChildren<Transform>(true))
+            {
+                float d = Vector3.Distance(hairRoot.position, t.position);
+                if (d > maxDist)
+                {
+                    maxDist = d;
+                    tip = t;
+                }
+            }
+            return tip;
+        }
+
+        internal static RealHumanData InitRealHumanData(ChaControl chaCtrl, RealHumanData realHumanData)
         {
 #if FEATURE_FIX_EXISTING
             SyncExistingFeatures(charCtrl);
 #endif
             {
-                realHumanData.charControl = charCtrl;
+                realHumanData.charControl = chaCtrl;
 
                 realHumanData.c_m_eye.Clear();
 
-                realHumanData = GetMaterials(charCtrl, realHumanData);
+                realHumanData = GetMaterials(chaCtrl, realHumanData);
 
                 // UnityEngine.Debug.Log($">> realHumanData.m_skin_body {realHumanData.m_skin_body}");
 
@@ -896,10 +942,37 @@ namespace RealHumanSupport
                     return null;
                 else
                 {
-                    if (StudioAPI.InsideStudio) {
-                        OCIChar ociChar = charCtrl.GetOCIChar();
+                    realHumanData.hairDynamicBones.Clear();
+                    realHumanData.hairTipCache.Clear();
 
-                        realHumanData = AllocateBumpMap(charCtrl, realHumanData);
+                    string bone_prefix_str = "cf_";
+                    if (chaCtrl.sex == 0)
+                        bone_prefix_str = "cm_";
+
+                    realHumanData.root_bone = chaCtrl.objAnim.transform.FindLoop(bone_prefix_str+"J_Root");
+                    realHumanData.head_bone = chaCtrl.objAnim.transform.FindLoop(bone_prefix_str+"J_Head");
+                    realHumanData.neck_bone = chaCtrl.objAnim.transform.FindLoop(bone_prefix_str+"J_Neck");      
+
+                    DynamicBone[] hairbones = realHumanData.head_bone.GetComponentsInChildren<DynamicBone>(true);  
+                    
+                    realHumanData.hairDynamicBones = hairbones.ToList();
+
+                    foreach (DynamicBone bone in hairbones)
+                    {
+                        if (bone == null)
+                            continue;
+
+                        if (!realHumanData.hairTipCache.ContainsKey(bone))
+                        {
+                            Transform tip = FindHairTip(bone.transform);
+                            realHumanData.hairTipCache.Add(bone, tip);
+                        }
+                    }
+
+                    if (StudioAPI.InsideStudio) {
+                        OCIChar ociChar = chaCtrl.GetOCIChar();
+
+                        realHumanData = AllocateBumpMap(chaCtrl, realHumanData);
                         
                         foreach (OCIChar.BoneInfo bone in ociChar.listBones)
                         {
@@ -1516,72 +1589,6 @@ namespace RealHumanSupport
             }
         }
 
-#if FEATURE_DYNAMIC_LONGHAIR
-        internal static void SyncLongHairCollider(ChaControl chaCtrl, RealHumanData realHumanData) {
-
-            if (realHumanData.head_bone != null)
-            {        
-                PositionData neckData = GetBoneRotationFromTF(realHumanData.neck_bone);
-                PositionData headData = GetBoneRotationFromTF(realHumanData.head_bone);
-
-                Vector3 worldGravity = Vector3.down * 0.02f;
-                Vector3 worldForce1 = Vector3.zero;          
-                Vector3 worldForce2 = Vector3.zero;   
-                Vector3 worldForce3 = Vector3.zero;   
-
-                float zOffset = 0f;
-                float yOffset = 0f;
-                if (neckData._front >= 0f)
-                {   
-                    // neck이 앞으로 숙인 유형                                                                        
-                    float angle = Math.Abs(neckData._front);                                
-                    yOffset = Remap(Math.Abs(angle), 0.0f, 140.0f, 0.01f, 0.02f);
-                    zOffset = yOffset;
-                    worldForce1 = new Vector3(0, -yOffset, zOffset);
-                } else
-                {
-                    // neck이 뒤로 숙인 유형                                                                        
-                    float angle = Math.Abs(neckData._front);                                
-                    yOffset = Remap(Math.Abs(angle), 0.0f, 140.0f, 0.005f, 0.07f);
-                    zOffset = yOffset;
-                    worldForce1 = new Vector3(0, -yOffset, -zOffset);                                    
-                }
-
-                if (neckData._front < headData._front)
-                {
-                    // head가 앞으로 숙인 유형                                                                        
-                    float angle = GetRelativePosition(neckData._front, headData._front);                           
-                    yOffset = Remap(Math.Abs(angle), 0.0f, 120.0f, 0.01f, 0.03f);
-                    zOffset = yOffset;
-                    worldForce2 = new Vector3(0, -yOffset, zOffset);
-                } else
-                {
-                    // head가 뒤로 숙인 유형   
-                    float angle = GetRelativePosition(neckData._front, headData._front);
-                    yOffset = Remap(Math.Abs(angle), 0.0f, 120.0f, 0.005f, 0.035f);
-                    zOffset = yOffset;
-                    worldForce2 = new Vector3(0, -yOffset, -zOffset);                  
-                }
-
-                worldForce3 = worldForce1 + worldForce2;
-                
-                // hair 에 대해 world position 적용
-                foreach (DynamicBone hairDynamicBone in realHumanData.hairDynamicBones)
-                {
-                    if (hairDynamicBone == null)
-                        continue;
-
-                    // DynamicBone 기준 로컬 변환
-                    hairDynamicBone.m_Gravity =
-                        realHumanData.root_bone.InverseTransformDirection(worldGravity);
-
-                    hairDynamicBone.m_Force =
-                        realHumanData.root_bone.InverseTransformDirection(worldForce3);
-                }                         
-            }              
-        }         
-#endif
-
 #if FEATURE_IK_INGAME
         internal static void SupportIKOnScene(ChaControl chaCtrl, RealHumanData realHumanData) {
             if (!StudioAPI.InsideStudio && !MakerAPI.InsideMaker) {
@@ -2191,10 +2198,12 @@ namespace RealHumanSupport
 
         public Transform root_bone;
 
-        public Transform l_eye_s;
-        public Transform r_eye_s;
-
+        public Transform nose_bridge_s;
+        public Transform mouse_l;
+        
         public List<DynamicBone> hairDynamicBones = new List<DynamicBone>();
+
+        public Dictionary<DynamicBone, Transform> hairTipCache = new Dictionary<DynamicBone, Transform>();
 
         // public BODY_SHADER bodyShaderType = BODY_SHADER.DEFAULT;
         // public BODY_SHADER faceShaderType = BODY_SHADER.DEFAULT;

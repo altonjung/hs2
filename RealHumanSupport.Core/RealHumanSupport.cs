@@ -65,7 +65,7 @@ namespace RealHumanSupport
     {
         #region Constants
         public const string Name = "RealHumanSupport";
-        public const string Version = "0.9.0.5";
+        public const string Version = "0.9.0.6";
         public const string GUID = "com.alton.illusionplugins.RealHuman";
         internal const string _ownerId = "Alton";
 #if KOIKATSU || AISHOUJO || HONEYSELECT2
@@ -374,9 +374,9 @@ namespace RealHumanSupport
             _self._body_areaBuffer = new ComputeBuffer(24, sizeof(float) * 6); 
         }
 
-        private void SceneInit()
+        private void MgmtInit()
         {
-            // UnityEngine.Debug.Log($">> SceneInit()");
+            // UnityEngine.Debug.Log($">> MgmtInit()");
             if (StudioAPI.InsideStudio)
             {
                 foreach (var kvp in _ociCharMgmt)
@@ -433,15 +433,7 @@ namespace RealHumanSupport
                                 Logic.SupportBodyBumpEffect(_selectedOciChar.charInfo, realHumanData);
                             }                          
                         }                        
-                    } 
-                    else
-                    {
-#if FEATURE_DYNAMIC_LONGHAIR
-                        if (_ociCharMgmt.TryGetValue(_selectedOciChar.GetChaControl().GetHashCode(), out var realHumanData1)) {
-                            Logic.SyncLongHairCollider(_selectedOciChar.GetChaControl(), realHumanData1);
-                        }
-#endif
-                    }                   
+                    }                  
                 }
 
                 yield return new WaitForSeconds(0.5f); // 0.5초 대기
@@ -539,28 +531,27 @@ namespace RealHumanSupport
 
                         // ---------------- 눈 흔들림 ----------------
 
-                        float amplitude = 0.0015f; // HS2 기준, 필요하면 조절
+                        float amplitude = 0.001f; // HS2 기준, 필요하면 조절
                         float easedBump = (Mathf.Sin(time * Mathf.PI * 4.5f * 2f) + 1f) * 0.5f;
-                        float yOffset = (easedBump - 0.5f) * 1.5f * amplitude; // -amp ~ +amp
+                        float yOffset = (easedBump - 0.5f) * 1.5f * amplitude; // -amp ~ +amp                                             
 
-                        if (realHumanData.l_eye_s != null)
+                        if (realHumanData.nose_bridge_s != null)
                         {
-                            Vector3 basePos = realHumanData.l_eye_s.localPosition; // ← 기준 위치 (미리 저장돼 있어야 함)
-                            realHumanData.l_eye_s.localPosition =
-                                basePos + new Vector3(0f, yOffset, 0f);
+                            realHumanData.nose_bridge_s.localPosition =
+                                 Vector3.zero + new Vector3(0f, yOffset * 7, 0f);
                         }
-
-                        if (realHumanData.r_eye_s != null)
+                        
+                        if (realHumanData.mouse_l != null)
                         {
-                            Vector3 basePos = realHumanData.r_eye_s.localPosition;
-                            realHumanData.r_eye_s.localPosition =
-                                basePos + new Vector3(0f, yOffset, 0f);
-                        }                                                  
-
+                            realHumanData.mouse_l.localPosition =
+                                Vector3.zero + new Vector3(0f, yOffset * 10, 0f);
+                        }     
                     } else
                     {
                         realHumanData.m_tear_eye.SetFloat("_NamidaScale", 0f);
-                        realHumanData.m_tear_eye.SetFloat("_RefractionScale", 0f);                        
+                        realHumanData.m_tear_eye.SetFloat("_RefractionScale", 0f);        
+                        realHumanData.nose_bridge_s.localPosition = Vector3.zero;     
+                        realHumanData.mouse_l.localPosition = Vector3.zero;    
                     }
 
                     yield return null;
@@ -670,23 +661,21 @@ namespace RealHumanSupport
 
                         // ---------------- 눈 흔들림 ----------------
 
-                        float amplitude = 0.0015f; // HS2 기준, 필요하면 조절
+                        float amplitude = 0.001f; // HS2 기준, 필요하면 조절
                         float easedBump = (Mathf.Sin(time * Mathf.PI * 4.5f * 2f) + 1f) * 0.5f;
-                        float yOffset = (easedBump - 0.5f) * 1.5f * amplitude; // -amp ~ +amp
+                        float yOffset = (easedBump - 0.5f) * 1.5f * amplitude; // -amp ~ +amp                                             
 
-                        if (realHumanData.l_eye_s != null)
+                        if (realHumanData.nose_bridge_s != null)
                         {
-                            Vector3 basePos = realHumanData.l_eye_s.localPosition; // ← 기준 위치 (미리 저장돼 있어야 함)
-                            realHumanData.l_eye_s.localPosition =
-                                basePos + new Vector3(0f, yOffset, 0f);
+                            realHumanData.nose_bridge_s.localPosition =
+                                 Vector3.zero + new Vector3(0f, yOffset * 7, 0f);
                         }
-
-                        if (realHumanData.r_eye_s != null)
+                        
+                        if (realHumanData.mouse_l != null)
                         {
-                            Vector3 basePos = realHumanData.r_eye_s.localPosition;
-                            realHumanData.r_eye_s.localPosition =
-                                basePos + new Vector3(0f, yOffset, 0f);
-                        }                                                            
+                            realHumanData.mouse_l.localPosition =
+                                Vector3.zero + new Vector3(0f, yOffset * 10, 0f);
+                        }
                     }
 
                     yield return null;
@@ -730,31 +719,22 @@ namespace RealHumanSupport
 
                 if (ociChar != null)
                 {
+                                                            
+                    _self.MgmtInit();
                     _self._selectedOciChar = ociChar;
 
-                    if (_self._ociCharMgmt.TryGetValue(ociChar.GetChaControl().GetHashCode(), out var realHumanData))
-                    {                    
-                        if (realHumanData.coroutine != null)
-                        {
-                            ociChar.GetChaControl().StopCoroutine(realHumanData.coroutine);
-                            ociChar.GetChaControl().StartCoroutine(_self.ExecuteAfterFrame(ociChar.GetChaControl(), realHumanData));
-                        }                    
-                    } 
-                    else
-                    {
-                        RealHumanData realHumanData2 = new RealHumanData();
-                        realHumanData2 = Logic.InitRealHumanData(ociChar.GetChaControl(), realHumanData2);
+                    RealHumanData realHumanData2 = new RealHumanData();
+                    realHumanData2 = Logic.InitRealHumanData(ociChar.GetChaControl(), realHumanData2);
 
-                        if (realHumanData2 != null)
-                        {
-                            realHumanData2.coroutine = ociChar.charInfo.StartCoroutine(_self.RoutineForStudio(realHumanData2));                    
-                            _self._ociCharMgmt.Add(ociChar.GetChaControl().GetHashCode(), realHumanData2);
-                            ociChar.GetChaControl().StartCoroutine(_self.ExecuteAfterFrame(ociChar.GetChaControl(), realHumanData2));
-                        } else
-                        {
-                            Logger.LogMessage($"Body skin not has bumpmap2");
-                        }                    
-                    }    
+                    if (realHumanData2 != null)
+                    {
+                        realHumanData2.coroutine = ociChar.charInfo.StartCoroutine(_self.RoutineForStudio(realHumanData2));                    
+                        _self._ociCharMgmt.Add(ociChar.GetChaControl().GetHashCode(), realHumanData2);
+                        ociChar.GetChaControl().StartCoroutine(_self.ExecuteAfterFrame(ociChar.GetChaControl(), realHumanData2));
+                    } else
+                    {
+                        Logger.LogMessage($"Body skin not has bumpmap2");
+                    } 
                 }
 
                 return true;
@@ -909,7 +889,7 @@ namespace RealHumanSupport
         {
             private static bool Prefix(object __instance, bool _close)
             {
-                _self.SceneInit();
+                _self.MgmtInit();
                 return true;
             }
         }        
